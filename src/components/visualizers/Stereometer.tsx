@@ -181,23 +181,24 @@ export function Stereometer({ width, height }: Props) {
       const levelH = rmsN * barFullH;
       const levelY = barBot - levelH;
 
-      // Rainbow glow: multiple layers of increasing spread for soft falloff
-      const glowSteps = 8;
+      // Rainbow glow: horizontal gradient per strip (transparent → color → transparent)
+      const glowSteps = 6;
       const stepH = Math.max(1, levelH / glowSteps);
-      // Draw 3 layers: narrow+bright, medium, wide+dim → soft gradient falloff
-      const layers = [
-        { spread: 10 + rmsN * 15,  alpha: 0.35 + rmsN * 0.4 },
-        { spread: 25 + rmsN * 40,  alpha: 0.15 + rmsN * 0.2 },
-        { spread: 50 + rmsN * 80,  alpha: 0.05 + rmsN * 0.1 },
-      ];
-      for (const layer of layers) {
-        for (let g = 0; g < glowSteps; g++) {
-          const t = glowSteps > 1 ? g / (glowSteps - 1) : 0;
-          const hue = t * 280;
-          const sy = levelY + levelH - (g + 1) * stepH;
-          ctx.fillStyle = `hsla(${hue},90%,55%,${layer.alpha})`;
-          ctx.fillRect(x - layer.spread, sy, sideBarW + layer.spread * 2, stepH + 1);
-        }
+      const spread = 20 + rmsN * 35;
+      const cx = x + sideBarW / 2;
+      for (let g = 0; g < glowSteps; g++) {
+        const t = glowSteps > 1 ? g / (glowSteps - 1) : 0;
+        const hue = t * 280;
+        const sy = levelY + levelH - (g + 1) * stepH;
+        const a = 0.2 + rmsN * 0.3;
+        const grad = ctx.createLinearGradient(cx - spread, 0, cx + spread, 0);
+        grad.addColorStop(0, `hsla(${hue},90%,55%,0)`);
+        grad.addColorStop(0.35, `hsla(${hue},90%,55%,${a})`);
+        grad.addColorStop(0.5, `hsla(${hue},90%,60%,${a * 1.2})`);
+        grad.addColorStop(0.65, `hsla(${hue},90%,55%,${a})`);
+        grad.addColorStop(1, `hsla(${hue},90%,55%,0)`);
+        ctx.fillStyle = grad;
+        ctx.fillRect(cx - spread, sy, spread * 2, stepH + 1);
       }
 
       // Main bar fill — rainbow gradient (opaque, covers glow center)
