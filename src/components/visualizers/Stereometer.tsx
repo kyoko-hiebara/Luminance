@@ -59,6 +59,7 @@ export function Stereometer({ width, height }: Props) {
   const ctxCache = useRef({ w: 0, h: 0, ctx: null as CanvasRenderingContext2D | null });
   const dataRef = useRef<AudioData["stereo"] | null>(null);
   const levelsRef = useRef<AudioData["levels"] | null>(null);
+  const smoothCorrRef = useRef(0);
 
   useAudioData("audio-data", (payload) => {
     dataRef.current = payload.stereo;
@@ -180,31 +181,24 @@ export function Stereometer({ width, height }: Props) {
       const levelH = rmsN * barFullH;
       const levelY = barBot - levelH;
 
-      // Rainbow glow: draw fill off-screen, shadow lands on-screen
-      ctx.save();
-      const offX = 5000; // push fill far off-screen
+      // Rainbow glow: wide semi-transparent strips, bar covers center on top
+      const glowSpread = 18 + rmsN * 30; // how far glow extends sideways
       const glowSteps = 8;
-      const stepH = levelH / glowSteps;
+      const stepH = Math.max(1, levelH / glowSteps);
       for (let g = 0; g < glowSteps; g++) {
-        const t = g / (glowSteps - 1);
+        const t = glowSteps > 1 ? g / (glowSteps - 1) : 0;
         const hue = t * 280;
         const sy = levelY + levelH - (g + 1) * stepH;
-        ctx.shadowColor = `hsl(${hue},90%,55%)`;
-        ctx.shadowBlur = 25 + rmsN * 40;
-        ctx.shadowOffsetX = -offX; // shadow offset brings it back on-screen
-        ctx.fillStyle = `hsl(${hue},90%,55%)`;
-        ctx.globalAlpha = 0.5 + rmsN * 0.5;
-        ctx.fillRect(x - 2 + offX, sy, sideBarW + 4, stepH + 1);
+        ctx.fillStyle = `hsla(${hue},90%,55%,${(0.15 + rmsN * 0.25)})`;
+        ctx.fillRect(x - glowSpread, sy, sideBarW + glowSpread * 2, stepH + 1);
       }
-      ctx.restore();
 
-      // Main bar fill — rainbow gradient (crisp, on top of glow)
+      // Main bar fill — rainbow gradient (opaque, covers glow center)
       ctx.fillStyle = rainbowGrad;
-      ctx.globalAlpha = 0.95;
+      ctx.globalAlpha = 1;
       ctx.beginPath();
       ctx.roundRect(x, levelY, sideBarW, levelH, 2);
       ctx.fill();
-      ctx.globalAlpha = 1;
 
       // Peak marker
       const peakY = barBot - peakN * barFullH;
@@ -284,7 +278,9 @@ export function Stereometer({ width, height }: Props) {
     const segRadius = Math.min(1.5, segW * 0.3);
 
     const correlation = stereo?.correlation ?? 0;
-    const corrNorm = Math.max(-1, Math.min(1, correlation));
+    // EMA smoothing on correlation for stable bubble position
+    smoothCorrRef.current += (correlation - smoothCorrRef.current) * 0.06;
+    const corrNorm = Math.max(-1, Math.min(1, smoothCorrRef.current));
     const centerIdx = Math.floor(CORR_SEGMENTS / 2);
     const targetIdx = Math.floor(((corrNorm + 1) / 2) * CORR_SEGMENTS);
 
