@@ -172,11 +172,6 @@ export function Stereometer({ width, height }: Props) {
     rainbowGrad.addColorStop(1.0, "hsl(280,80%,55%)");   // purple
 
     const drawSideBar = (x: number, rmsN: number, _peakN: number) => {
-      // Background track
-      ctx.fillStyle = "rgba(40,40,70,0.15)";
-      ctx.beginPath();
-      ctx.roundRect(x, barTop, sideBarW, barFullH, 2);
-      ctx.fill();
 
       const levelH = rmsN * barFullH;
 
