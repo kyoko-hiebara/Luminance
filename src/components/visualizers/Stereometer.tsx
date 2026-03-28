@@ -183,12 +183,12 @@ export function Stereometer({ width, height }: Props) {
       // Rainbow glow dots — radial gradient per dot (perfectly smooth falloff)
       const cx = x + sideBarW / 2;
       const dots = 24;
-      const glowR = 15 + rmsN * 25;
+      const glowR = 8 + rmsN * 12;
       for (let g = 0; g < dots; g++) {
         const t = dots > 1 ? g / (dots - 1) : 0;
         const hue = t * 280;
         const dy = barBot - t * levelH;
-        const a = 0.08 + rmsN * 0.12;
+        const a = 0.04 + rmsN * 0.06;
         const grad = ctx.createRadialGradient(cx, dy, 0, cx, dy, glowR);
         grad.addColorStop(0, `hsla(${hue},80%,60%,${a})`);
         grad.addColorStop(0.5, `hsla(${hue},80%,55%,${a * 0.4})`);
