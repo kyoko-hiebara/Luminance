@@ -183,7 +183,7 @@ export function Stereometer({ width, height }: Props) {
         const t = dots > 1 ? g / (dots - 1) : 0;
         const hue = t * 280;
         const dy = barBot - t * levelH;
-        const a = 0.04 + rmsN * 0.06;
+        const a = 0.08 + rmsN * 0.14;
         const grad = ctx.createRadialGradient(cx, dy, 0, cx, dy, glowR);
         grad.addColorStop(0, `hsla(${hue},80%,60%,${a})`);
         grad.addColorStop(0.5, `hsla(${hue},80%,55%,${a * 0.4})`);
