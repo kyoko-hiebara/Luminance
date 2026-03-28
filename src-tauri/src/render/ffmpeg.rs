@@ -138,7 +138,8 @@ impl FfmpegProcess {
             .context("Failed to write frame to ffmpeg")
     }
 
-    pub fn finish(self) -> Result<()> {
+    pub fn finish(mut self) -> Result<()> {
+        // Explicitly close stdin to signal EOF to FFmpeg
         drop(self.stdin);
         let output = self
             .child
@@ -146,10 +147,14 @@ impl FfmpegProcess {
             .context("Failed to wait for ffmpeg")?;
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            anyhow::bail!(
-                "FFmpeg failed: {}",
-                stderr.chars().take(500).collect::<String>()
-            );
+            // Show the LAST 1000 chars of stderr (FFmpeg puts the actual error at the end)
+            let stderr_str = stderr.to_string();
+            let tail: String = if stderr_str.len() > 1000 {
+                format!("...{}", &stderr_str[stderr_str.len() - 1000..])
+            } else {
+                stderr_str
+            };
+            anyhow::bail!("FFmpeg failed: {}", tail);
         }
         Ok(())
     }
