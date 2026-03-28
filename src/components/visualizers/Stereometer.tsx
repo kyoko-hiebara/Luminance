@@ -180,33 +180,27 @@ export function Stereometer({ width, height }: Props) {
       const levelH = rmsN * barFullH;
       const levelY = barBot - levelH;
 
-      // Rainbow glow: draw multiple strips along the bar, each with its own hue
+      // Rainbow glow: invisible fill, only shadow visible
       ctx.save();
       const glowSteps = 8;
       const stepH = levelH / glowSteps;
       for (let g = 0; g < glowSteps; g++) {
-        const t = g / (glowSteps - 1); // 0=bottom(red), 1=top(purple)
+        const t = g / (glowSteps - 1);
         const hue = t * 280;
         const sy = levelY + levelH - (g + 1) * stepH;
         ctx.shadowColor = `hsl(${hue},90%,55%)`;
         ctx.shadowBlur = 25 + rmsN * 40;
-        ctx.fillStyle = `hsl(${hue},90%,55%)`;
-        ctx.globalAlpha = (0.4 + rmsN * 0.4) / glowSteps * 3.0;
-        ctx.fillRect(x - 4, sy, sideBarW + 8, stepH + 1);
+        ctx.fillStyle = "rgba(0,0,0,0)"; // invisible fill — only the shadow renders
+        ctx.globalAlpha = 0.5 + rmsN * 0.5;
+        ctx.fillRect(x - 2, sy, sideBarW + 4, stepH + 1);
       }
       ctx.restore();
 
-      // Main bar fill — rainbow gradient
+      // Main bar fill — rainbow gradient (drawn ON TOP of the glow)
       ctx.fillStyle = rainbowGrad;
-      ctx.globalAlpha = 0.9;
+      ctx.globalAlpha = 0.95;
       ctx.beginPath();
       ctx.roundRect(x, levelY, sideBarW, levelH, 2);
-      ctx.fill();
-
-      // Bright inner glow
-      ctx.globalAlpha = 0.4;
-      ctx.beginPath();
-      ctx.roundRect(x - 1, levelY - 1, sideBarW + 2, levelH + 2, 3);
       ctx.fill();
       ctx.globalAlpha = 1;
 
