@@ -303,16 +303,13 @@ interface Props {
   height: number;
 }
 
-// Text positions: cycles through left/center/right/top/bottom
 const TEXT_POSITIONS = [
   { justify: "flex-start", align: "flex-start", textAlign: "left" as const },    // top-left
-  { justify: "center", align: "flex-start", textAlign: "center" as const },      // top-center
   { justify: "flex-end", align: "flex-start", textAlign: "right" as const },     // top-right
   { justify: "flex-start", align: "center", textAlign: "left" as const },        // mid-left
   { justify: "center", align: "center", textAlign: "center" as const },          // center
   { justify: "flex-end", align: "center", textAlign: "right" as const },         // mid-right
   { justify: "flex-start", align: "flex-end", textAlign: "left" as const },      // bottom-left
-  { justify: "center", align: "flex-end", textAlign: "center" as const },        // bottom-center
   { justify: "flex-end", align: "flex-end", textAlign: "right" as const },       // bottom-right
 ];
 
@@ -367,7 +364,7 @@ export function VJVisualizer({ width, height }: Props) {
       if (barBlock !== lastBarBlockRef.current && barInBlock < 0.5) {
         // New 16-bar block: pick a new random position
         lastBarBlockRef.current = barBlock;
-        setTextPosIdx(barBlock % TEXT_POSITIONS.length);
+        setTextPosIdx(Math.floor(Math.random() * TEXT_POSITIONS.length));
       }
 
       if (shouldShow) {
