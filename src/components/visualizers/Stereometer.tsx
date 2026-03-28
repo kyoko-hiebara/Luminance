@@ -193,7 +193,7 @@ export function Stereometer({ width, height }: Props) {
         ctx.shadowBlur = 20 + rmsN * 35;
         ctx.fillStyle = `hsla(${hue},90%,60%,${0.4 + rmsN * 0.4})`;
         ctx.beginPath();
-        ctx.arc(cx, dy, 2.5 + rmsN * 2, 0, Math.PI * 2);
+        ctx.arc(cx, dy, 1, 0, Math.PI * 2);
         ctx.fill();
       }
       ctx.restore();
