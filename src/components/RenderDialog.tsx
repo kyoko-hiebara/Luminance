@@ -137,7 +137,7 @@ export function RenderDialog({ audioPath, onClose }: Props) {
     const rect = layout.getBoundingClientRect();
     const width = Math.round(rect.width / 2) * 2;
     const height = Math.round(rect.height / 2) * 2;
-    const fps = 60;
+    const fps = 30;
 
     setPhase("rendering");
     setError(null);
@@ -172,9 +172,7 @@ export function RenderDialog({ audioPath, onClose }: Props) {
     let lastPosition = 0;
     let staleCount = 0;
     let lastCheckPos = 0;
-    let lastCaptureTime = 0;
-    const frameMs = 1000 / fps; // 16.7ms for 60fps
-    let rafId = 0;
+    const frameMs = 1000 / fps; // 33.3ms for 30fps
 
     // Listen for transport position
     const unlistenAudio = await listen<AudioData>("audio-data", (event) => {
@@ -190,7 +188,6 @@ export function RenderDialog({ audioPath, onClose }: Props) {
     const finishRecording = async () => {
       if (!renderingRef.current) return;
       renderingRef.current = false;
-      cancelAnimationFrame(rafId);
       unlistenAudio();
       setPhase("encoding");
       await new Promise((r) => setTimeout(r, 300));
@@ -203,46 +200,43 @@ export function RenderDialog({ audioPath, onClose }: Props) {
       }
     };
 
-    // rAF capture loop: throttle to 60fps, fire-and-forget submit.
-    // FFmpeg uses -framerate 60: each frame = exactly 16.7ms, no timestamps.
-    // The background writer thread in Rust handles pipe buffering.
-    const captureLoop = () => {
-      if (!renderingRef.current) return;
-      const now = performance.now();
+    // Synchronous 30fps capture: one frame at a time, exact timing.
+    const run = async () => {
+      while (renderingRef.current) {
+        const t0 = performance.now();
 
-      // End-of-playback check (every ~500ms)
-      if (frames % 30 === 0 && frames > 0) {
+        // End check
         if (knownDuration > 0 && lastPosition >= knownDuration - 0.15) {
-          finishRecording(); return;
+          await finishRecording(); return;
         }
         if (lastPosition > 0 && Math.abs(lastPosition - lastCheckPos) < 0.01) {
           staleCount++;
-          if (staleCount >= 6) { finishRecording(); return; }
+          if (staleCount >= 90) { await finishRecording(); return; }
         } else { staleCount = 0; }
         lastCheckPos = lastPosition;
-      }
 
-      // Throttle to 60fps (skip extra ticks on 120Hz+ displays)
-      if (now - lastCaptureTime >= frameMs) {
-        lastCaptureTime = now;
+        // Capture & submit one frame
         const composite = compositeRef.current;
         if (composite) {
           const base64 = captureLayout(composite);
           if (base64) {
             frames++;
-            if (frames % 15 === 0) setFrameCount(frames);
-            // Fire-and-forget: background writer thread handles buffering
-            invoke("submit_frame", { frameData: base64 }).catch(() => {});
+            if (frames % 10 === 0) setFrameCount(frames);
+            try {
+              await invoke("submit_frame", { frameData: base64 });
+            } catch { break; }
           }
         }
-      }
 
-      if (renderingRef.current) {
-        rafId = requestAnimationFrame(captureLoop);
+        // Maintain 30fps cadence
+        const elapsed = performance.now() - t0;
+        if (elapsed < frameMs) {
+          await new Promise((r) => setTimeout(r, frameMs - elapsed));
+        }
       }
     };
 
-    rafId = requestAnimationFrame(captureLoop);
+    run();
   }, [audioPath]);
 
   const handleCancel = useCallback(async () => {
