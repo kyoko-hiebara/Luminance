@@ -61,6 +61,13 @@ function captureLayout(compositeCanvas: HTMLCanvasElement): string | null {
     ctx.beginPath();
     ctx.roundRect(px, py, pw, ph, 8);
     ctx.fill();
+
+    // Panel border
+    ctx.strokeStyle = colors.borderPanel;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.roundRect(px, py, pw, ph, 8);
+    ctx.stroke();
   }
 
   // Draw all canvases
