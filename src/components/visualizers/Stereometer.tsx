@@ -180,22 +180,22 @@ export function Stereometer({ width, height }: Props) {
 
       const levelH = rmsN * barFullH;
 
-      // Rainbow glow dots only (no bar)
+      // Rainbow glow dots — radial gradient per dot (perfectly smooth falloff)
       const cx = x + sideBarW / 2;
       const dots = 24;
-      ctx.save();
+      const glowR = 15 + rmsN * 25;
       for (let g = 0; g < dots; g++) {
         const t = dots > 1 ? g / (dots - 1) : 0;
         const hue = t * 280;
         const dy = barBot - t * levelH;
-        ctx.shadowColor = `hsl(${hue},90%,60%)`;
-        ctx.shadowBlur = 20 + rmsN * 35;
-        ctx.fillStyle = `hsla(${hue},90%,60%,${0.5 + rmsN * 0.4})`;
-        ctx.beginPath();
-        ctx.arc(cx, dy, 2 + rmsN * 1.5, 0, Math.PI * 2);
-        ctx.fill();
+        const a = 0.4 + rmsN * 0.4;
+        const grad = ctx.createRadialGradient(cx, dy, 0, cx, dy, glowR);
+        grad.addColorStop(0, `hsla(${hue},90%,65%,${a})`);
+        grad.addColorStop(0.3, `hsla(${hue},90%,58%,${a * 0.6})`);
+        grad.addColorStop(1, `hsla(${hue},90%,50%,0)`);
+        ctx.fillStyle = grad;
+        ctx.fillRect(cx - glowR, dy - glowR, glowR * 2, glowR * 2);
       }
-      ctx.restore();
     };
 
     drawSideBar(lBarX, rmsL, peakL);
