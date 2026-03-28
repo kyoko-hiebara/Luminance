@@ -171,7 +171,7 @@ export function Stereometer({ width, height }: Props) {
     rainbowGrad.addColorStop(0.8, "hsl(240,80%,60%)");   // blue
     rainbowGrad.addColorStop(1.0, "hsl(280,80%,55%)");   // purple
 
-    const drawSideBar = (x: number, rmsN: number, peakN: number) => {
+    const drawSideBar = (x: number, rmsN: number, _peakN: number) => {
       // Background track
       ctx.fillStyle = "rgba(40,40,70,0.15)";
       ctx.beginPath();
@@ -179,11 +179,10 @@ export function Stereometer({ width, height }: Props) {
       ctx.fill();
 
       const levelH = rmsN * barFullH;
-      const levelY = barBot - levelH;
 
-      // Rainbow glow: small dots with shadowBlur (same technique as Spectrum sparkles)
+      // Rainbow glow dots only (no bar)
       const cx = x + sideBarW / 2;
-      const dots = 16;
+      const dots = 24;
       ctx.save();
       for (let g = 0; g < dots; g++) {
         const t = dots > 1 ? g / (dots - 1) : 0;
@@ -191,24 +190,12 @@ export function Stereometer({ width, height }: Props) {
         const dy = barBot - t * levelH;
         ctx.shadowColor = `hsl(${hue},90%,60%)`;
         ctx.shadowBlur = 20 + rmsN * 35;
-        ctx.fillStyle = `hsla(${hue},90%,60%,${0.4 + rmsN * 0.4})`;
+        ctx.fillStyle = `hsla(${hue},90%,60%,${0.5 + rmsN * 0.4})`;
         ctx.beginPath();
-        ctx.arc(cx, dy, 3 + rmsN * 2, 0, Math.PI * 2);
+        ctx.arc(cx, dy, 2 + rmsN * 1.5, 0, Math.PI * 2);
         ctx.fill();
       }
       ctx.restore();
-
-      // Main bar fill — rainbow gradient (opaque, covers glow center)
-      ctx.fillStyle = rainbowGrad;
-      ctx.globalAlpha = 1;
-      ctx.beginPath();
-      ctx.roundRect(x, levelY, sideBarW, levelH, 2);
-      ctx.fill();
-
-      // Peak marker
-      const peakY = barBot - peakN * barFullH;
-      ctx.fillStyle = colors.peakHold;
-      ctx.fillRect(x, peakY - 1, sideBarW, 2);
     };
 
     drawSideBar(lBarX, rmsL, peakL);
