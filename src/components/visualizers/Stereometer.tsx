@@ -160,7 +160,18 @@ export function Stereometer({ width, height }: Props) {
     const peakL = dbNorm(levels?.peak_l ?? -90);
     const peakR = dbNorm(levels?.peak_r ?? -90);
 
+    // Rainbow gradient for bars: red(bottom) → yellow → green → cyan → blue → purple(top)
+    const rainbowGrad = ctx.createLinearGradient(0, barBot, 0, barTop);
+    rainbowGrad.addColorStop(0.0, "hsl(0,90%,55%)");     // red
+    rainbowGrad.addColorStop(0.2, "hsl(40,90%,55%)");    // orange
+    rainbowGrad.addColorStop(0.35, "hsl(60,90%,55%)");   // yellow
+    rainbowGrad.addColorStop(0.5, "hsl(120,85%,50%)");   // green
+    rainbowGrad.addColorStop(0.65, "hsl(180,85%,50%)");  // cyan
+    rainbowGrad.addColorStop(0.8, "hsl(240,80%,60%)");   // blue
+    rainbowGrad.addColorStop(1.0, "hsl(280,80%,55%)");   // purple
+
     const drawSideBar = (x: number, rmsN: number, peakN: number) => {
+      // Background track
       ctx.fillStyle = "rgba(40,40,70,0.15)";
       ctx.beginPath();
       ctx.roundRect(x, barTop, sideBarW, barFullH, 2);
@@ -168,28 +179,31 @@ export function Stereometer({ width, height }: Props) {
 
       const levelH = rmsN * barFullH;
       const levelY = barBot - levelH;
-      const color = rmsN > 0.9 ? colors.levelOver : rmsN > 0.7 ? colors.levelWarn : colors.levelOk;
 
-      // Ambient glow around the bar (color-matched, spreads into the panel)
+      // Color at the peak position for the glow
+      const peakHue = rmsN * 280; // 0=red, 280=purple
+      const glowColor = `hsl(${peakHue},85%,55%)`;
+
+      // Big ambient glow (bleeds wide into the panel)
       ctx.save();
-      ctx.shadowColor = color;
-      ctx.shadowBlur = 12 + rmsN * 20;
-      ctx.fillStyle = color;
-      ctx.globalAlpha = 0.4 * rmsN;
-      ctx.fillRect(x - 2, levelY, sideBarW + 4, levelH);
+      ctx.shadowColor = glowColor;
+      ctx.shadowBlur = 25 + rmsN * 40;
+      ctx.fillStyle = glowColor;
+      ctx.globalAlpha = 0.5 + rmsN * 0.4;
+      ctx.fillRect(x - 4, levelY, sideBarW + 8, levelH);
       ctx.restore();
 
-      // Main bar fill
-      ctx.fillStyle = color;
-      ctx.globalAlpha = 0.8;
+      // Main bar fill — rainbow gradient
+      ctx.fillStyle = rainbowGrad;
+      ctx.globalAlpha = 0.9;
       ctx.beginPath();
       ctx.roundRect(x, levelY, sideBarW, levelH, 2);
       ctx.fill();
 
-      // Inner glow
-      ctx.globalAlpha = 0.3;
+      // Bright inner glow
+      ctx.globalAlpha = 0.4;
       ctx.beginPath();
-      ctx.roundRect(x - 1, levelY - 1, sideBarW + 2, levelH + 2, 2);
+      ctx.roundRect(x - 1, levelY - 1, sideBarW + 2, levelH + 2, 3);
       ctx.fill();
       ctx.globalAlpha = 1;
 
