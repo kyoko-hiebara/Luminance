@@ -34,6 +34,14 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "windows": {
+      "nsis": {
+        "installMode": "both"
+      }
+    },
+    "shortDescription": "Multi-panel audio visualizer",
+    "longDescription": "Luminance - Multi-panel audio visualizer with spectrum analyzer, waveform, VU meter, loudness meter, spectrogram, oscilloscope, and stereometer. Built with Tauri 2 + React + Rust.",
+    "category": "Music"
   }
 }
