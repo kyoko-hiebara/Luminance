@@ -1,18 +1,18 @@
 import { Panel } from "@/components/Panel";
 import { Spectrum } from "@/components/visualizers/Spectrum";
 import { Waveform } from "@/components/visualizers/Waveform";
-import { VUMeter } from "@/components/visualizers/VUMeter";
 import { Oscilloscope } from "@/components/visualizers/Oscilloscope";
 import { Loudness } from "@/components/visualizers/Loudness";
 import { Spectrogram } from "@/components/visualizers/Spectrogram";
 import { Stereometer } from "@/components/visualizers/Stereometer";
+import { VJVisualizer } from "@/components/visualizers/VJVisualizer";
 
 /*
-  Layout grid:
+  Layout grid (7 panels):
   ┌─────────────────┬──────────┬──────────┐
-  │                  │ VU Meter │ Loudness │
+  │                  │  Stereo  │ Loudness │
   │    Spectrum      ├──────────┤──────────┤
-  │                  │  Stereo  │  Oscillo │
+  │                  │    VJ    │  Oscillo │
   ├─────────────────┼──────────┴──────────┤
   │   Spectrogram   │       Waveform      │
   └─────────────────┴─────────────────────┘
@@ -28,8 +28,8 @@ export function Layout() {
         gridTemplateColumns: "1fr 1fr 1fr",
         gridTemplateRows: "1fr 1fr 1fr",
         gridTemplateAreas: `
-          "spectrum vu       loudness"
-          "spectrum stereo   oscillo"
+          "spectrum stereo   loudness"
+          "spectrum vj       oscillo"
           "spectro  waveform waveform"
         `,
       }}
@@ -40,9 +40,9 @@ export function Layout() {
         </Panel>
       </div>
 
-      <div className="min-h-0 min-w-0 overflow-hidden" style={{ gridArea: "vu" }}>
-        <Panel title="VU Meter">
-          {({ width, height }) => <VUMeter width={width} height={height} />}
+      <div className="min-h-0 min-w-0 overflow-hidden" style={{ gridArea: "stereo" }}>
+        <Panel title="Stereo">
+          {({ width, height }) => <Stereometer width={width} height={height} />}
         </Panel>
       </div>
 
@@ -52,9 +52,9 @@ export function Layout() {
         </Panel>
       </div>
 
-      <div className="min-h-0 min-w-0 overflow-hidden" style={{ gridArea: "stereo" }}>
-        <Panel title="Stereo">
-          {({ width, height }) => <Stereometer width={width} height={height} />}
+      <div className="min-h-0 min-w-0 overflow-hidden" style={{ gridArea: "vj" }}>
+        <Panel title="VJ">
+          {({ width, height }) => <VJVisualizer width={width} height={height} />}
         </Panel>
       </div>
 
