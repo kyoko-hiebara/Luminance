@@ -172,12 +172,6 @@ export function Spectrogram({ width, height }: Props) {
 
     for (const { label, pos } of freqLabels) {
       const y = plotY + pos * plotH;
-
-      // Dark background pill behind label for readability
-      const textWidth = ctx.measureText(label).width;
-      ctx.fillStyle = "rgba(10,10,15,0.75)";
-      ctx.fillRect(plotX - textWidth - 8, y - 6, textWidth + 5, 12);
-
       glowText(ctx, label, plotX - 4, y);
     }
 
