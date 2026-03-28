@@ -395,6 +395,10 @@ fn run_dsp_loop(
     let mut rms = RmsProcessor::new(300.0, sample_rate);
     let stereo_proc = StereoProcessor::new();
     let mut loudness = LoudnessProcessor::new(sample_rate);
+    let mut loudness_l = LoudnessProcessor::new(sample_rate);
+    let mut loudness_r = LoudnessProcessor::new(sample_rate);
+    let mut loudness_m = LoudnessProcessor::new(sample_rate);
+    let mut loudness_s = LoudnessProcessor::new(sample_rate);
 
     let frame_duration = Duration::from_micros(16_667);
     let mut acc_l: Vec<f32> = Vec::new();
@@ -439,7 +443,21 @@ fn run_dsp_loop(
             let (bl_s, bm_s, bh_s) = compute_band_energies(&spec_s.magnitudes, NUM_BANDS);
             let levels = rms.process(left, right);
             let stereo_data = stereo_proc.process(left, right);
-            let loudness_data = loudness.process(left, right);
+            let total_lufs = loudness.process(left, right);
+            let l_lufs = loudness_l.process(left, left);
+            let r_lufs = loudness_r.process(right, right);
+            let mid: Vec<f32> = left.iter().zip(right.iter()).map(|(&l, &r)| (l + r) * 0.5).collect();
+            let side_sig: Vec<f32> = left.iter().zip(right.iter()).map(|(&l, &r)| (l - r) * 0.5).collect();
+            let mid_lufs = loudness_m.process(&mid, &mid);
+            let side_lufs = loudness_s.process(&side_sig, &side_sig);
+            let loudness_data = crate::dsp::LoudnessData {
+                momentary: total_lufs.momentary,
+                short_term: total_lufs.short_term,
+                mid_m: mid_lufs.momentary,
+                side_m: side_lufs.momentary,
+                l_m: l_lufs.momentary,
+                r_m: r_lufs.momentary,
+            };
 
             let waveform_l = decimate_waveform(left, WAVEFORM_DISPLAY_SAMPLES);
             let waveform_r = decimate_waveform(right, WAVEFORM_DISPLAY_SAMPLES);

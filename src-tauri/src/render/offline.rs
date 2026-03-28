@@ -150,7 +150,15 @@ pub fn run_offline_render(
             let (bl_s, bm_s, bh_s) = compute_band_energies(&spec_s.magnitudes, NUM_BANDS);
             let levels = rms.process(left, right);
             let stereo_data = stereo_proc.process(left, right);
-            let loudness_data = loudness.process(left, right);
+            let total_lufs = loudness.process(left, right);
+            let loudness_data = crate::dsp::LoudnessData {
+                momentary: total_lufs.momentary,
+                short_term: total_lufs.short_term,
+                mid_m: total_lufs.momentary,
+                side_m: -70.0,
+                l_m: total_lufs.momentary,
+                r_m: total_lufs.momentary,
+            };
             let waveform_l = decimate_waveform(left, WAVEFORM_SAMPLES);
             let waveform_r = decimate_waveform(right, WAVEFORM_SAMPLES);
 
@@ -209,6 +217,10 @@ pub fn run_offline_render(
                 loudness: crate::dsp::LoudnessData {
                     momentary: -70.0,
                     short_term: -70.0,
+                    mid_m: -70.0,
+                    side_m: -70.0,
+                    l_m: -70.0,
+                    r_m: -70.0,
                 },
                 spectrogram_frame: vec![-90.0; NUM_BANDS],
                 transport: None,

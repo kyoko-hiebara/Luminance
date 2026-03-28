@@ -64,8 +64,12 @@ pub struct StereoData {
 
 #[derive(Clone, Serialize)]
 pub struct LoudnessData {
-    /// Momentary loudness (400ms window), LUFS
+    /// Total (L+R) momentary/short-term
     pub momentary: f32,
-    /// Short-term loudness (3s window), LUFS
     pub short_term: f32,
+    /// Per-channel momentary LUFS
+    pub mid_m: f32,
+    pub side_m: f32,
+    pub l_m: f32,
+    pub r_m: f32,
 }

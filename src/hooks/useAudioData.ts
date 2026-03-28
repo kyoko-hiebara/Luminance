@@ -27,6 +27,10 @@ export interface AudioData {
   loudness: {
     momentary: number;
     short_term: number;
+    mid_m: number;
+    side_m: number;
+    l_m: number;
+    r_m: number;
   };
   spectrogram_frame: number[];
   transport: {

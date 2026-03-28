@@ -137,23 +137,28 @@ export function Loudness({ width, height }: Props) {
     const plotH = canvasHeight - padding.top - padding.bottom;
     if (plotW <= 0 || plotH <= 0) return;
 
-    const barGap = Math.max(10, plotW * 0.2);
-    const barWidth = Math.floor((plotW - barGap) / 2);
-    const barXM = padding.left;
-    const barXS = padding.left + barWidth + barGap;
+    // 5 bars: Total, Mid, Side, L, R
+    const barCount = 5;
+    const totalGap = Math.max(barCount - 1, 0) * 4;
+    const barWidth = Math.max(4, Math.floor((plotW - totalGap) / barCount));
+    const barStep = barWidth + 4;
 
     const segGap = 2;
     const segH = Math.max(1, (plotH - segGap * (SEGMENT_COUNT - 1)) / SEGMENT_COUNT);
     const segRadius = Math.min(1.5, segH * 0.3);
 
-    const loudness = dataRef.current;
-    const momentary = loudness?.momentary ?? -90;
-    const shortTerm = loudness?.short_term ?? -90;
-    const displayM = Math.max(floor, Math.min(ceil, momentary));
-    const displayS = Math.max(floor, Math.min(ceil, shortTerm));
+    const loud = dataRef.current;
+    const bars: { label: string; lufs: number }[] = [
+      { label: "T", lufs: loud?.momentary ?? -90 },
+      { label: "M", lufs: loud?.mid_m ?? -90 },
+      { label: "S", lufs: loud?.side_m ?? -90 },
+      { label: "L", lufs: loud?.l_m ?? -90 },
+      { label: "R", lufs: loud?.r_m ?? -90 },
+    ];
 
-    const drawLedBar = (lufs: number, barX: number) => {
-      const levelNorm = lufsToNorm(lufs, floor, ceil);
+    const drawLedBar = (lufs: number, barX: number, bw: number) => {
+      const clamped = Math.max(floor, Math.min(ceil, lufs));
+      const levelNorm = lufsToNorm(clamped, floor, ceil);
       const activeSegs = Math.floor(levelNorm * SEGMENT_COUNT);
 
       for (let i = 0; i < SEGMENT_COUNT; i++) {
@@ -161,39 +166,38 @@ export function Loudness({ width, height }: Props) {
         const color = segmentLufsColor(i, floor, ceil);
         const isActive = i < activeSegs;
 
+        ctx.fillStyle = color;
+        ctx.globalAlpha = isActive ? 1 : 0.1;
+        ctx.beginPath();
+        ctx.roundRect(barX, sy, bw, segH, segRadius);
+        ctx.fill();
+
         if (isActive) {
-          ctx.fillStyle = color;
-          ctx.globalAlpha = 1;
-          ctx.beginPath();
-          ctx.roundRect(barX, sy, barWidth, segH, segRadius);
-          ctx.fill();
           ctx.globalAlpha = 0.3;
           ctx.beginPath();
-          ctx.roundRect(barX - 1, sy - 1, barWidth + 2, segH + 2, segRadius);
+          ctx.roundRect(barX - 1, sy - 1, bw + 2, segH + 2, segRadius);
           ctx.fill();
-          ctx.globalAlpha = 1;
-        } else {
-          ctx.fillStyle = color;
-          ctx.globalAlpha = 0.1;
-          ctx.beginPath();
-          ctx.roundRect(barX, sy, barWidth, segH, segRadius);
-          ctx.fill();
-          ctx.globalAlpha = 1;
         }
+        ctx.globalAlpha = 1;
       }
 
+      // Value bubble
       const levelY = padding.top + plotH * (1 - levelNorm);
-      const bubbleX = barX + barWidth / 2;
+      const bubbleX = barX + bw / 2;
       const bubbleY = levelY - 2;
-      const valText = formatLufs(lufs, floor);
-      const valColor = lufsColor(lufs);
+      const valText = formatLufs(clamped, floor);
+      const valColor = lufsColor(clamped);
       drawBubble(ctx, bubbleX, bubbleY, valText, valColor, valColor);
     };
 
-    drawLedBar(displayM, barXM);
-    drawLedBar(displayS, barXS);
+    // Draw all 5 bars
+    for (let b = 0; b < barCount; b++) {
+      const barX = padding.left + b * barStep;
+      drawLedBar(bars[b].lufs, barX, barWidth);
+    }
 
     // -14 LUFS reference line
+    const lastBarRight = padding.left + (barCount - 1) * barStep + barWidth;
     if (REFERENCE_LUFS >= floor && REFERENCE_LUFS <= ceil) {
       const refNorm = lufsToNorm(REFERENCE_LUFS, floor, ceil);
       const refY = padding.top + plotH * (1 - refNorm);
@@ -202,15 +206,15 @@ export function Loudness({ width, height }: Props) {
       ctx.setLineDash([4, 3]);
       ctx.beginPath();
       ctx.moveTo(padding.left - 4, refY);
-      ctx.lineTo(padding.left + plotW + 4, refY);
+      ctx.lineTo(lastBarRight + 4, refY);
       ctx.stroke();
       ctx.setLineDash([]);
       ctx.font = "7px monospace";
       ctx.textAlign = "left";
-      glowText(ctx, "-14", barXS + barWidth + 3, refY + 3, colors.peakHold, "rgba(244,114,182,0.4)");
+      glowText(ctx, "-14", lastBarRight + 4, refY + 3, colors.peakHold, "rgba(244,114,182,0.4)");
     }
 
-    // Dynamic scale markers
+    // Scale markers
     const allMarkers = [-60, -48, -36, -24, -20, -18, -14, -10, -6, -3, 0];
     const visibleMarkers = allMarkers.filter((v) => v >= floor && v <= ceil);
     ctx.font = "7px monospace";
@@ -224,16 +228,16 @@ export function Loudness({ width, height }: Props) {
       ctx.beginPath();
       ctx.moveTo(padding.left - 2, y);
       ctx.lineTo(padding.left, y);
-      ctx.moveTo(barXS + barWidth, y);
-      ctx.lineTo(barXS + barWidth + 2, y);
       ctx.stroke();
     }
 
-    // Labels
-    ctx.font = "bold 10px monospace";
+    // Bar labels
+    ctx.font = "bold 8px monospace";
     ctx.textAlign = "center";
-    glowText(ctx, "M", barXM + barWidth / 2, canvasHeight - padding.bottom + 14, colors.textPrimary, "rgba(237,237,244,0.35)");
-    glowText(ctx, "S", barXS + barWidth / 2, canvasHeight - padding.bottom + 14, colors.textPrimary, "rgba(237,237,244,0.35)");
+    for (let b = 0; b < barCount; b++) {
+      const barX = padding.left + b * barStep;
+      glowText(ctx, bars[b].label, barX + barWidth / 2, canvasHeight - padding.bottom + 12, colors.textPrimary, "rgba(237,237,244,0.35)");
+    }
     ctx.font = "7px monospace";
     glowText(ctx, "LUFS", width / 2, canvasHeight - 2);
   });
