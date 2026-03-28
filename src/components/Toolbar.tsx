@@ -4,6 +4,7 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
 import { colors } from "@/lib/colors";
 import { useBpm } from "@/hooks/useBpm";
+import { useVjText } from "@/hooks/useVjText";
 import { RenderDialog } from "@/components/RenderDialog";
 import type { AudioData } from "@/hooks/useAudioData";
 
@@ -24,6 +25,7 @@ interface ToolbarProps {
 
 export function Toolbar({ onRegisterDropHandler }: ToolbarProps) {
   const { bpm, setBpm } = useBpm();
+  const { text: vjText, setText: setVjText } = useVjText();
   const [bpmDraft, setBpmDraft] = useState(String(bpm));
   const bpmInputRef = useRef<HTMLInputElement>(null);
 
@@ -124,6 +126,9 @@ export function Toolbar({ onRegisterDropHandler }: ToolbarProps) {
       setActiveSource(name);
       setIsFileMode(true);
       setCurrentAudioPath(path);
+      // Set default VJ text to filename (without extension)
+      const baseName = name.replace(/\.[^.]+$/, "");
+      if (!vjText) setVjText(baseName);
     } catch (e) {
       console.error("Failed to open file:", e);
     } finally {
@@ -282,6 +287,34 @@ export function Toolbar({ onRegisterDropHandler }: ToolbarProps) {
             borderRadius: 3,
             padding: "2px 4px",
             textAlign: "center",
+            outline: "none",
+          }}
+        />
+      </div>
+
+      <div
+        className="flex items-center gap-1"
+        style={{
+          backgroundColor: "rgba(255,255,255,0.03)",
+          borderRadius: 4,
+          padding: "2px 6px",
+        }}
+      >
+        <span style={{ fontSize: 9, fontFamily: "monospace", color: colors.textDim }}>VJ</span>
+        <input
+          type="text"
+          value={vjText}
+          onChange={(e) => setVjText(e.target.value)}
+          placeholder="display text"
+          style={{
+            width: 80,
+            fontSize: 9,
+            fontFamily: "monospace",
+            background: colors.bgPrimary,
+            color: colors.textPrimary,
+            border: `1px solid ${colors.borderPanel}`,
+            borderRadius: 3,
+            padding: "2px 4px",
             outline: "none",
           }}
         />

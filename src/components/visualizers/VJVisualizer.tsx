@@ -1,6 +1,9 @@
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useState } from "react";
 import { useAudioData, type AudioData } from "@/hooks/useAudioData";
 import { useAnimationFrame } from "@/hooks/useAnimationFrame";
+import { useBpm } from "@/hooks/useBpm";
+import { useVjText } from "@/hooks/useVjText";
+import { colors } from "@/lib/colors";
 
 // ─── Shader Sources ───────────────────────────────────────────────────────────
 
@@ -300,6 +303,19 @@ interface Props {
   height: number;
 }
 
+// Text positions: cycles through left/center/right/top/bottom
+const TEXT_POSITIONS = [
+  { justify: "flex-start", align: "flex-start", textAlign: "left" as const },    // top-left
+  { justify: "center", align: "flex-start", textAlign: "center" as const },      // top-center
+  { justify: "flex-end", align: "flex-start", textAlign: "right" as const },     // top-right
+  { justify: "flex-start", align: "center", textAlign: "left" as const },        // mid-left
+  { justify: "center", align: "center", textAlign: "center" as const },          // center
+  { justify: "flex-end", align: "center", textAlign: "right" as const },         // mid-right
+  { justify: "flex-start", align: "flex-end", textAlign: "left" as const },      // bottom-left
+  { justify: "center", align: "flex-end", textAlign: "center" as const },        // bottom-center
+  { justify: "flex-end", align: "flex-end", textAlign: "right" as const },       // bottom-right
+];
+
 export function VJVisualizer({ width, height }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const glRef = useRef<WebGL2RenderingContext | null>(null);
@@ -317,7 +333,61 @@ export function VJVisualizer({ width, height }: Props) {
   const smoothHighRef = useRef(0);
   const smoothRmsRef = useRef(0);
 
-  useAudioData("audio-data", (payload) => { dataRef.current = payload; });
+  // VJ text overlay
+  const { bpmRef } = useBpm();
+  const { textRef } = useVjText();
+  const [textVisible, setTextVisible] = useState(false);
+  const [textPosIdx, setTextPosIdx] = useState(0);
+  const [textOpacity, setTextOpacity] = useState(0);
+  const transportRef = useRef<{ position_secs: number } | null>(null);
+  const lastBarBlockRef = useRef(-1);
+
+  useAudioData("audio-data", (payload) => {
+    dataRef.current = payload;
+    if (payload.transport) {
+      transportRef.current = { position_secs: payload.transport.position_secs };
+    }
+  });
+
+  // Text timing: show for 4 bars every 16 bars
+  useEffect(() => {
+    let rafId = 0;
+    const tick = () => {
+      const pos = transportRef.current?.position_secs ?? 0;
+      const currentBpm = bpmRef.current;
+      const beatSec = 60 / currentBpm;
+      const barSec = beatSec * 4;
+      const currentBar = pos / barSec;
+      const barBlock = Math.floor(currentBar / 16); // which 16-bar cycle
+      const barInBlock = currentBar % 16;            // position within cycle
+
+      // Show text during bars 0-3 of each 16-bar block
+      const shouldShow = barInBlock < 4 && pos > 0.1;
+
+      if (barBlock !== lastBarBlockRef.current && barInBlock < 0.5) {
+        // New 16-bar block: pick a new random position
+        lastBarBlockRef.current = barBlock;
+        setTextPosIdx(barBlock % TEXT_POSITIONS.length);
+      }
+
+      if (shouldShow) {
+        // Fade in/out within the 4-bar window
+        const progress = barInBlock / 4; // 0..1 over 4 bars
+        let opacity = 1;
+        if (progress < 0.1) opacity = progress / 0.1;          // fade in
+        else if (progress > 0.8) opacity = (1 - progress) / 0.2; // fade out
+        setTextOpacity(opacity);
+        setTextVisible(true);
+      } else {
+        setTextVisible(false);
+        setTextOpacity(0);
+      }
+
+      rafId = requestAnimationFrame(tick);
+    };
+    rafId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafId);
+  }, [bpmRef]);
 
   // WebGL init
   useEffect(() => {
@@ -416,5 +486,43 @@ export function VJVisualizer({ width, height }: Props) {
     gl.bindVertexArray(null);
   });
 
-  return <canvas ref={canvasRef} style={{ width: width, height: height, display: "block" }} />;
+  const posStyle = TEXT_POSITIONS[textPosIdx % TEXT_POSITIONS.length];
+  const displayText = textRef.current || "";
+
+  return (
+    <div style={{ position: "relative", width, height, overflow: "hidden" }}>
+      <canvas ref={canvasRef} style={{ width, height, display: "block" }} />
+      {textVisible && displayText && (
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            display: "flex",
+            justifyContent: posStyle.justify,
+            alignItems: posStyle.align,
+            padding: 12,
+            pointerEvents: "none",
+            opacity: textOpacity,
+            transition: "opacity 0.15s ease",
+          }}
+        >
+          <span
+            style={{
+              fontFamily: "monospace",
+              fontWeight: "bold",
+              fontSize: Math.max(12, Math.min(24, width * 0.06)),
+              color: colors.textPrimary,
+              textAlign: posStyle.textAlign,
+              textShadow: `0 0 20px rgba(139,92,246,0.6), 0 0 8px rgba(0,245,212,0.4), 0 0 2px rgba(255,255,255,0.3)`,
+              letterSpacing: "0.05em",
+              maxWidth: "90%",
+              wordBreak: "break-word",
+            }}
+          >
+            {displayText}
+          </span>
+        </div>
+      )}
+    </div>
+  );
 }

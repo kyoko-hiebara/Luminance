@@ -3,6 +3,7 @@ import { listen } from "@tauri-apps/api/event";
 import { Toolbar } from "@/components/Toolbar";
 import { Layout } from "@/components/Layout";
 import { BpmProvider } from "@/hooks/useBpm";
+import { VjTextProvider } from "@/hooks/useVjText";
 import { colors } from "@/lib/colors";
 
 interface DragDropEvent {
@@ -62,6 +63,7 @@ export default function App() {
 
   return (
     <BpmProvider>
+    <VjTextProvider>
       <div className="flex flex-col h-screen bg-bg-primary relative">
         <Toolbar onRegisterDropHandler={registerDropHandler} />
         <Layout />
@@ -99,6 +101,7 @@ export default function App() {
           </div>
         )}
       </div>
+    </VjTextProvider>
     </BpmProvider>
   );
 }
