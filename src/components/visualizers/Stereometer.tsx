@@ -132,10 +132,10 @@ export function Stereometer({ width, height }: Props) {
     ctx.font = "bold 8px monospace";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    // M = top of vertical axis (Mid)
-    glowText(ctx, "M", scopeCX, scopeCY - scopeR - 8);
-    // S = right of horizontal axis (Side) — mirrors M on the other axis
-    glowText(ctx, "S", scopeCX + scopeR + 10, scopeCY);
+    // M = top of vertical axis (inside the scope area)
+    glowText(ctx, "M", scopeCX + 10, scopeCY - scopeR + 10);
+    // S = right of horizontal axis (inside)
+    glowText(ctx, "S", scopeCX + scopeR - 10, scopeCY - 8);
     // L = top-left diagonal
     glowText(ctx, "L", scopeCX - scopeR * 0.72 - 10, scopeCY - scopeR * 0.72 - 6);
     // R = top-right diagonal
@@ -169,17 +169,31 @@ export function Stereometer({ width, height }: Props) {
       const levelH = rmsN * barFullH;
       const levelY = barBot - levelH;
       const color = rmsN > 0.9 ? colors.levelOver : rmsN > 0.7 ? colors.levelWarn : colors.levelOk;
+
+      // Ambient glow around the bar (color-matched, spreads into the panel)
+      ctx.save();
+      ctx.shadowColor = color;
+      ctx.shadowBlur = 12 + rmsN * 20;
       ctx.fillStyle = color;
-      ctx.globalAlpha = 0.7;
+      ctx.globalAlpha = 0.4 * rmsN;
+      ctx.fillRect(x - 2, levelY, sideBarW + 4, levelH);
+      ctx.restore();
+
+      // Main bar fill
+      ctx.fillStyle = color;
+      ctx.globalAlpha = 0.8;
       ctx.beginPath();
       ctx.roundRect(x, levelY, sideBarW, levelH, 2);
       ctx.fill();
-      ctx.globalAlpha = 0.25;
+
+      // Inner glow
+      ctx.globalAlpha = 0.3;
       ctx.beginPath();
       ctx.roundRect(x - 1, levelY - 1, sideBarW + 2, levelH + 2, 2);
       ctx.fill();
       ctx.globalAlpha = 1;
 
+      // Peak marker
       const peakY = barBot - peakN * barFullH;
       ctx.fillStyle = colors.peakHold;
       ctx.fillRect(x, peakY - 1, sideBarW, 2);
