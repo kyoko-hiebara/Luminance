@@ -47,7 +47,7 @@ function captureLayout(compositeCanvas: HTMLCanvasElement): string | null {
   ctx.fillStyle = colors.bgPrimary;
   ctx.fillRect(0, 0, w, h);
 
-  // Draw all panel backgrounds + canvases + titles
+  // 1. Panel backgrounds
   const panels = layout.querySelectorAll("[data-panel]");
   for (const panel of panels) {
     const panelRect = (panel as HTMLElement).getBoundingClientRect();
@@ -55,32 +55,50 @@ function captureLayout(compositeCanvas: HTMLCanvasElement): string | null {
     const py = panelRect.top - rect.top;
     const pw = panelRect.width;
     const ph = panelRect.height;
-
-    // Panel background with rounded corners
     ctx.fillStyle = colors.bgPanel;
     ctx.beginPath();
     ctx.roundRect(px, py, pw, ph, 8);
     ctx.fill();
-
-    // Panel border
-    ctx.strokeStyle = colors.borderPanel;
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.roundRect(px, py, pw, ph, 8);
-    ctx.stroke();
   }
 
-  // Draw all canvases
+  // 2. Canvases — clipped to their parent panel's rounded rect
   const canvases = layout.querySelectorAll("canvas");
   for (const canvas of canvases) {
     const cr = canvas.getBoundingClientRect();
     const cx = cr.left - rect.left;
     const cy = cr.top - rect.top;
+
+    // Find parent panel for clipping
+    const parentPanel = canvas.closest("[data-panel]") as HTMLElement | null;
+    if (parentPanel) {
+      const pr = parentPanel.getBoundingClientRect();
+      ctx.save();
+      ctx.beginPath();
+      ctx.roundRect(pr.left - rect.left, pr.top - rect.top, pr.width, pr.height, 8);
+      ctx.clip();
+    }
+
     try {
       ctx.drawImage(canvas, cx, cy, cr.width, cr.height);
     } catch {
       // skip tainted canvases
     }
+
+    if (parentPanel) ctx.restore();
+  }
+
+  // 3. Panel borders (on top of everything)
+  for (const panel of panels) {
+    const panelRect = (panel as HTMLElement).getBoundingClientRect();
+    const px = panelRect.left - rect.left;
+    const py = panelRect.top - rect.top;
+    const pw = panelRect.width;
+    const ph = panelRect.height;
+    ctx.strokeStyle = colors.borderPanel;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.roundRect(px, py, pw, ph, 8);
+    ctx.stroke();
   }
 
   // Draw panel title bars
