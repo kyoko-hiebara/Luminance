@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.DS_Store
+src-tauri/target/
+
+# Claude Code config
+.claude/
+CLAUDE.md
+character.md
