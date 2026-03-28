@@ -18,7 +18,11 @@ function formatTime(secs: number): string {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
-export function Toolbar() {
+interface ToolbarProps {
+  onRegisterDropHandler?: (handler: (path: string) => void) => void;
+}
+
+export function Toolbar({ onRegisterDropHandler }: ToolbarProps) {
   const { bpm, setBpm } = useBpm();
   const [bpmDraft, setBpmDraft] = useState(String(bpm));
   const bpmInputRef = useRef<HTMLInputElement>(null);
@@ -112,6 +116,26 @@ export function Toolbar() {
     }
   };
 
+  const loadAudioFile = useCallback(async (path: string) => {
+    setIsLoading(true);
+    try {
+      await invoke("open_audio_file", { path });
+      const name = path.split(/[/\\]/).pop() ?? path;
+      setActiveSource(name);
+      setIsFileMode(true);
+      setCurrentAudioPath(path);
+    } catch (e) {
+      console.error("Failed to open file:", e);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  // Register drop handler with parent
+  useEffect(() => {
+    onRegisterDropHandler?.(loadAudioFile);
+  }, [loadAudioFile, onRegisterDropHandler]);
+
   const openFile = async () => {
     const file = await open({
       multiple: false,
@@ -122,20 +146,8 @@ export function Toolbar() {
         },
       ],
     });
-
     if (file) {
-      setIsLoading(true);
-      try {
-        await invoke("open_audio_file", { path: file });
-        const name = typeof file === "string" ? file.split("/").pop() ?? file : "file";
-        setActiveSource(name);
-        setIsFileMode(true);
-        setCurrentAudioPath(file as string);
-      } catch (e) {
-        console.error("Failed to open file:", e);
-      } finally {
-        setIsLoading(false);
-      }
+      loadAudioFile(file as string);
     }
   };
 
