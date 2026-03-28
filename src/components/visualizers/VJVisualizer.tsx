@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState } from "react";
+import { useRef, useEffect } from "react";
 import { useAudioData, type AudioData } from "@/hooks/useAudioData";
 import { useAnimationFrame } from "@/hooks/useAnimationFrame";
 
@@ -294,10 +294,12 @@ function dbToNorm(db: number, floor = -60, ceil = 0): number {
   return Math.max(0, Math.min(1, (Math.max(floor, Math.min(ceil, db)) - floor) / (ceil - floor)));
 }
 
-// ─── Component (no width/height props — fills container) ──────────────────────
+interface Props {
+  width: number;
+  height: number;
+}
 
-export function VJVisualizer() {
-  const containerRef = useRef<HTMLDivElement>(null);
+export function VJVisualizer({ width, height }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const glRef = useRef<WebGL2RenderingContext | null>(null);
   const programRef = useRef<WebGLProgram | null>(null);
@@ -306,7 +308,6 @@ export function VJVisualizer() {
   const bufferRef = useRef<WebGLBuffer | null>(null);
   const dataRef = useRef<AudioData | null>(null);
   const startTimeRef = useRef(performance.now() / 1000);
-  const sizeRef = useRef({ w: 0, h: 0 });
 
   const beatRef = useRef(0);
   const prevBassRef = useRef(0);
@@ -314,26 +315,8 @@ export function VJVisualizer() {
   const smoothMidRef = useRef(0);
   const smoothHighRef = useRef(0);
   const smoothRmsRef = useRef(0);
-  const [size, setSize] = useState({ w: 0, h: 0 });
 
   useAudioData("audio-data", (payload) => { dataRef.current = payload; });
-
-  // ResizeObserver for container size
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-    const observer = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        const { width, height } = entry.contentRect;
-        const w = Math.floor(width);
-        const h = Math.floor(height);
-        sizeRef.current = { w, h };
-        setSize({ w, h });
-      }
-    });
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
 
   // WebGL init
   useEffect(() => {
@@ -385,12 +368,11 @@ export function VJVisualizer() {
     const canvas = canvasRef.current;
     if (!gl || !program || !u || !vao || !canvas) return;
 
-    const { w, h } = sizeRef.current;
-    if (w <= 0 || h <= 0) return;
+    if (width <= 0 || height <= 0) return;
 
     const dpr = window.devicePixelRatio || 1;
-    const pw = Math.floor(w * dpr);
-    const ph = Math.floor(h * dpr);
+    const pw = Math.floor(width * dpr);
+    const ph = Math.floor(height * dpr);
     if (canvas.width !== pw || canvas.height !== ph) {
       canvas.width = pw;
       canvas.height = ph;
@@ -433,14 +415,5 @@ export function VJVisualizer() {
     gl.bindVertexArray(null);
   });
 
-  return (
-    <div ref={containerRef} style={{ width: "100%", height: "100%", overflow: "hidden", borderRadius: 8 }}>
-      {size.w > 0 && size.h > 0 && (
-        <canvas
-          ref={canvasRef}
-          style={{ width: size.w, height: size.h, display: "block" }}
-        />
-      )}
-    </div>
-  );
+  return <canvas ref={canvasRef} style={{ width: width, height: height, display: "block" }} />;
 }
