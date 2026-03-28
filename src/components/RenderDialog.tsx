@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { listen } from "@tauri-apps/api/event";
 import { save } from "@tauri-apps/plugin-dialog";
 import { colors } from "@/lib/colors";
 import type { AudioData } from "@/hooks/useAudioData";
@@ -137,7 +137,7 @@ export function RenderDialog({ audioPath, onClose }: Props) {
     const rect = layout.getBoundingClientRect();
     const width = Math.round(rect.width / 2) * 2;
     const height = Math.round(rect.height / 2) * 2;
-    const fps = 30;
+    const fps = 60;
 
     setPhase("rendering");
     setError(null);
@@ -172,10 +172,12 @@ export function RenderDialog({ audioPath, onClose }: Props) {
     let lastPosition = 0;
     let staleCount = 0;
     let lastCheckPos = 0;
+    let lastCaptureTime = 0;
+    const frameMs = 1000 / fps; // 16.7ms for 60fps
+    let rafId = 0;
 
     // Listen for transport position
-    let unlistenAudio: UnlistenFn | null = null;
-    unlistenAudio = await listen<AudioData>("audio-data", (event) => {
+    const unlistenAudio = await listen<AudioData>("audio-data", (event) => {
       const t = event.payload.transport;
       if (t) {
         knownDuration = t.duration_secs;
@@ -188,9 +190,10 @@ export function RenderDialog({ audioPath, onClose }: Props) {
     const finishRecording = async () => {
       if (!renderingRef.current) return;
       renderingRef.current = false;
-      unlistenAudio?.();
+      cancelAnimationFrame(rafId);
+      unlistenAudio();
       setPhase("encoding");
-      await new Promise((r) => setTimeout(r, 200));
+      await new Promise((r) => setTimeout(r, 300));
       try {
         await invoke("finish_render");
         setPhase("complete");
@@ -200,46 +203,46 @@ export function RenderDialog({ audioPath, onClose }: Props) {
       }
     };
 
-    // Fixed-rate capture loop: exactly 30fps, one frame at a time, await each submit.
-    // This guarantees 1:1 frame mapping with FFmpeg's -framerate 30.
-    const frameMs = 1000 / fps; // 33.3ms
+    // rAF capture loop: throttle to 60fps, fire-and-forget submit.
+    // FFmpeg uses -framerate 60: each frame = exactly 16.7ms, no timestamps.
+    // The background writer thread in Rust handles pipe buffering.
+    const captureLoop = () => {
+      if (!renderingRef.current) return;
+      const now = performance.now();
 
-    const run = async () => {
-      while (renderingRef.current) {
-        const t0 = performance.now();
-
-        // End check
+      // End-of-playback check (every ~500ms)
+      if (frames % 30 === 0 && frames > 0) {
         if (knownDuration > 0 && lastPosition >= knownDuration - 0.15) {
-          await finishRecording(); return;
+          finishRecording(); return;
         }
         if (lastPosition > 0 && Math.abs(lastPosition - lastCheckPos) < 0.01) {
           staleCount++;
-          if (staleCount >= 90) { await finishRecording(); return; } // 3s at 30fps
+          if (staleCount >= 6) { finishRecording(); return; }
         } else { staleCount = 0; }
         lastCheckPos = lastPosition;
+      }
 
-        // Capture one frame
+      // Throttle to 60fps (skip extra ticks on 120Hz+ displays)
+      if (now - lastCaptureTime >= frameMs) {
+        lastCaptureTime = now;
         const composite = compositeRef.current;
         if (composite) {
           const base64 = captureLayout(composite);
           if (base64) {
             frames++;
-            if (frames % 10 === 0) setFrameCount(frames);
-            try {
-              await invoke("submit_frame", { frameData: base64 });
-            } catch { break; }
+            if (frames % 15 === 0) setFrameCount(frames);
+            // Fire-and-forget: background writer thread handles buffering
+            invoke("submit_frame", { frameData: base64 }).catch(() => {});
           }
         }
+      }
 
-        // Sleep to maintain 30fps cadence
-        const elapsed = performance.now() - t0;
-        if (elapsed < frameMs) {
-          await new Promise((r) => setTimeout(r, frameMs - elapsed));
-        }
+      if (renderingRef.current) {
+        rafId = requestAnimationFrame(captureLoop);
       }
     };
 
-    run();
+    rafId = requestAnimationFrame(captureLoop);
   }, [audioPath]);
 
   const handleCancel = useCallback(async () => {
