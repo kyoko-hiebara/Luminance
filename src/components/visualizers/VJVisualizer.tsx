@@ -158,16 +158,17 @@ void main() {
   vec3 neonPal = palNeon(length(q) + ft * 0.1);
   vec3 defPal = palette(length(r) + t * 0.03);
 
-  vec3 bgCol = mix(vec3(0.05, 0.02, 0.1), warmPal, clamp(f * f * 2.0, 0.0, 1.0));
-  bgCol = mix(bgCol, neonPal, clamp(length(q) * 0.4, 0.0, 1.0));
-  bgCol = mix(bgCol, defPal, clamp(length(r) * r.x * 0.8, 0.0, 1.0));
+  vec3 bgCol = mix(vec3(0.08, 0.04, 0.14), warmPal, clamp(f * f * 2.5, 0.0, 1.0));
+  bgCol = mix(bgCol, neonPal, clamp(length(q) * 0.5, 0.0, 1.0));
+  bgCol = mix(bgCol, defPal, clamp(length(r) * r.x * 1.0, 0.0, 1.0));
+  bgCol *= 1.4; // overall brightness boost
 
   // Bass pulse — radial
-  float pulse = exp(-length(uv) * (2.0 - bass * 1.5)) * bass * 0.4;
+  float pulse = exp(-length(uv) * (2.0 - bass * 1.5)) * bass * 0.5;
   bgCol += neonPal * pulse;
 
   // Beat flash on background
-  bgCol *= 1.0 + beat * 0.6;
+  bgCol *= 1.0 + beat * 0.7;
 
   // ─── Scattered shapes (constant motion, audio-triggered visibility) ─
   vec3 col = bgCol;
@@ -188,7 +189,7 @@ void main() {
     );
 
     float shapeType = rnd2;
-    float size = 0.04 + rnd.x * 0.05;
+    float size = 0.05 + rnd.x * 0.08;
 
     // Constant slow rotation
     float angle = rnd4 * 6.28 + t * (rnd3 - 0.5) * 0.3;
@@ -199,7 +200,7 @@ void main() {
 
     // Color (slowly shifting, not jerky)
     float palT = rnd4 + t * 0.03;
-    vec3 shapeCol = palette(palT) * 1.2;
+    vec3 shapeCol = palette(palT) * 1.8;
 
     // ── Audio-triggered VISIBILITY ──
     // Each shape is linked to a frequency range based on its index:
@@ -222,15 +223,15 @@ void main() {
     // Beat: all shapes get a brightness boost
     float beatBoost = beat * 0.4;
 
-    // Glow + edge + fill
-    float glow = exp(-max(d, 0.0) * 10.0) * 0.35;
-    float edge = smoothstep(0.006, 0.0, abs(d));
-    float fill = smoothstep(0.003, -0.015, d) * 0.25;
+    // Glow + edge + fill — all stronger
+    float glow = exp(-max(d, 0.0) * 6.0) * 0.5;
+    float edge = smoothstep(0.008, 0.0, abs(d)) * 1.2;
+    float fill = smoothstep(0.004, -0.02, d) * 0.4;
 
-    float opacity = appear * (0.7 + beatBoost);
+    float opacity = appear * (0.85 + beatBoost);
 
     col += shapeCol * (glow + fill) * opacity;
-    col += vec3(0.5, 0.95, 0.9) * edge * opacity * 0.6;
+    col += vec3(0.6, 1.0, 0.95) * edge * opacity;
   }
 
   // ─── Beat flash (subtle) ───────────────────────────────────────────
