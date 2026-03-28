@@ -64,45 +64,22 @@ impl FfmpegProcess {
             audio_path.to_string(),
         ];
 
-        // Video codec
-        if let Some(enc) = hw_encoder {
-            match enc {
-                "h264_videotoolbox" => {
-                    args.extend(["-c:v".into(), enc.into(), "-q:v".into(), "65".into()]);
-                }
-                "h264_nvenc" => {
-                    args.extend([
-                        "-c:v".into(),
-                        enc.into(),
-                        "-preset".into(),
-                        "p4".into(),
-                        "-cq".into(),
-                        "20".into(),
-                    ]);
-                }
-                _ => {
-                    args.extend([
-                        "-c:v".into(),
-                        "libx264".into(),
-                        "-preset".into(),
-                        "medium".into(),
-                        "-crf".into(),
-                        "18".into(),
-                    ]);
-                }
-            }
-        } else {
-            args.extend([
-                "-c:v".into(),
-                "libx264".into(),
-                "-preset".into(),
-                "medium".into(),
-                "-crf".into(),
-                "18".into(),
-            ]);
-        }
-
+        // Video codec — always use libx264 for maximum compatibility
+        // HW encoders (NVENC, VideoToolbox) fail on odd resolutions and driver quirks
+        let _ = hw_encoder; // reserved for future use
         args.extend([
+            "-c:v".into(),
+            "libx264".into(),
+            "-preset".into(),
+            "medium".into(),
+            "-crf".into(),
+            "18".into(),
+        ]);
+
+        // Pad to even dimensions (H.264 requires even width/height)
+        args.extend([
+            "-vf".into(),
+            "pad=ceil(iw/2)*2:ceil(ih/2)*2".into(),
             "-pix_fmt".into(),
             "yuv420p".into(),
             "-r".into(),
