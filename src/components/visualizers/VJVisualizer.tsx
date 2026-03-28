@@ -504,6 +504,7 @@ export function VJVisualizer({ width, height }: Props) {
           }}
         >
           <span
+            data-vj-text
             style={{
               fontFamily: "monospace",
               fontWeight: "bold",
