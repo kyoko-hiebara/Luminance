@@ -10,7 +10,7 @@ import { VJVisualizer } from "@/components/visualizers/VJVisualizer";
 /*
   Layout grid (7 panels):
   ┌─────────────────┬──────────┬──────────┐
-  │                  │  Stereo  │ Loudness │
+  │                  │ Loudness │  Stereo  │
   │    Spectrum      ├──────────┤──────────┤
   │                  │    VJ    │  Oscillo │
   ├─────────────────┼──────────┴──────────┤
@@ -28,7 +28,7 @@ export function Layout() {
         gridTemplateColumns: "1fr 1fr 1fr",
         gridTemplateRows: "1fr 1fr 1fr",
         gridTemplateAreas: `
-          "spectrum stereo   loudness"
+          "spectrum loudness stereo"
           "spectrum vj       oscillo"
           "spectro  waveform waveform"
         `,
