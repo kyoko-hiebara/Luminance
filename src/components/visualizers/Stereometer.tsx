@@ -58,8 +58,11 @@ export function Stereometer({ width, height }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const ctxCache = useRef({ w: 0, h: 0, ctx: null as CanvasRenderingContext2D | null });
   const dataRef = useRef<AudioData["stereo"] | null>(null);
+  const levelsRef = useRef<AudioData["levels"] | null>(null);
+
   useAudioData("audio-data", (payload) => {
     dataRef.current = payload.stereo;
+    levelsRef.current = payload.levels;
   });
 
   useAnimationFrame(() => {
@@ -125,13 +128,70 @@ export function Stereometer({ width, height }: Props) {
       ctx.stroke();
     }
 
-    // Labels
+    // Axis labels — all on their respective axes, symmetrically placed
     ctx.font = "bold 8px monospace";
     ctx.textAlign = "center";
-    glowText(ctx, "L", scopeCX - scopeR * 0.75 - 8, scopeCY - scopeR * 0.75 - 6);
-    glowText(ctx, "R", scopeCX + scopeR * 0.75 + 8, scopeCY - scopeR * 0.75 - 6);
-    glowText(ctx, "M", scopeCX + 10, 10);
-    glowText(ctx, "S", width - 12, scopeCY + 4);
+    ctx.textBaseline = "middle";
+    // M = top of vertical axis (Mid)
+    glowText(ctx, "M", scopeCX, scopeCY - scopeR - 8);
+    // S = right of horizontal axis (Side) — mirrors M on the other axis
+    glowText(ctx, "S", scopeCX + scopeR + 10, scopeCY);
+    // L = top-left diagonal
+    glowText(ctx, "L", scopeCX - scopeR * 0.72 - 10, scopeCY - scopeR * 0.72 - 6);
+    // R = top-right diagonal
+    glowText(ctx, "R", scopeCX + scopeR * 0.72 + 10, scopeCY - scopeR * 0.72 - 6);
+    ctx.textBaseline = "alphabetic";
+
+    // ─── Side L/R level bars (fill the margins on both sides) ─────────
+    const levels = levelsRef.current;
+    const barMargin = 4;
+    const lBarX = barMargin;
+    const rBarX = width - barMargin - 5;
+    const sideBarW = 5;
+    const barTop = 6;
+    const barBot = scopeH - 6;
+    const barFullH = barBot - barTop;
+
+    // dB to 0..1
+    const dbNorm = (db: number) => Math.max(0, Math.min(1, (Math.max(-60, db) + 60) / 60));
+
+    const rmsL = dbNorm(levels?.rms_l ?? -90);
+    const rmsR = dbNorm(levels?.rms_r ?? -90);
+    const peakL = dbNorm(levels?.peak_l ?? -90);
+    const peakR = dbNorm(levels?.peak_r ?? -90);
+
+    const drawSideBar = (x: number, rmsN: number, peakN: number) => {
+      ctx.fillStyle = "rgba(40,40,70,0.15)";
+      ctx.beginPath();
+      ctx.roundRect(x, barTop, sideBarW, barFullH, 2);
+      ctx.fill();
+
+      const levelH = rmsN * barFullH;
+      const levelY = barBot - levelH;
+      const color = rmsN > 0.9 ? colors.levelOver : rmsN > 0.7 ? colors.levelWarn : colors.levelOk;
+      ctx.fillStyle = color;
+      ctx.globalAlpha = 0.7;
+      ctx.beginPath();
+      ctx.roundRect(x, levelY, sideBarW, levelH, 2);
+      ctx.fill();
+      ctx.globalAlpha = 0.25;
+      ctx.beginPath();
+      ctx.roundRect(x - 1, levelY - 1, sideBarW + 2, levelH + 2, 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+
+      const peakY = barBot - peakN * barFullH;
+      ctx.fillStyle = colors.peakHold;
+      ctx.fillRect(x, peakY - 1, sideBarW, 2);
+    };
+
+    drawSideBar(lBarX, rmsL, peakL);
+    drawSideBar(rBarX, rmsR, peakR);
+
+    ctx.font = "6px monospace";
+    ctx.textAlign = "center";
+    glowText(ctx, "L", lBarX + sideBarW / 2, barBot + 9);
+    glowText(ctx, "R", rBarX + sideBarW / 2, barBot + 9);
 
     // ─── Lissajous dots (fill the whole scope area) ───────────────────
     const stereo = dataRef.current;
