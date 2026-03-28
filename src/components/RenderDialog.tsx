@@ -101,7 +101,7 @@ function captureLayout(compositeCanvas: HTMLCanvasElement): string | null {
     ctx.fillText(title.toUpperCase(), tx + 24, ty + tbRect.height / 2);
   }
 
-  const dataUrl = compositeCanvas.toDataURL("image/jpeg", 0.92);
+  const dataUrl = compositeCanvas.toDataURL("image/png");
   return dataUrl.split(",")[1];
 }
 

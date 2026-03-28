@@ -59,7 +59,7 @@ impl FfmpegProcess {
             "-f".into(),
             "image2pipe".into(),
             "-c:v".into(),
-            "mjpeg".into(),
+            "png".into(),
             "-i".into(),
             "pipe:0".into(),
             "-i".into(),
