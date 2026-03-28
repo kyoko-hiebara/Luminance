@@ -119,23 +119,18 @@ void main() {
   float rms  = clamp(u_rms,  0.0, 1.0);
   float beat = clamp(u_beat, 0.0, 1.0);
 
-  // ─── Background: subtle gradient + noise ───────────────────────────
-  float bgNoise = noise(uv * 2.0 + t * 0.1) * 0.15;
-  vec3 bgCol = mix(
-    vec3(0.02, 0.02, 0.06),
-    vec3(0.06, 0.03, 0.10),
-    uv.y * 0.5 + 0.5
-  ) + bgNoise;
+  // ─── Background: bright flowing gradient ────────────────────────────
+  float bgNoise = noise(uv * 2.5 + t * 0.08) * 0.2;
+  float bgFlow = noise(uv * 1.5 + vec2(t * 0.12, t * 0.09));
+  vec3 bgCol = palette(bgFlow * 0.5 + t * 0.015 + uv.y * 0.15) * 0.35;
+  bgCol += palette(bgFlow * 0.3 + 0.5 + t * 0.01) * 0.15;
+  bgCol += bgNoise * 0.08;
+  bgCol = max(bgCol, vec3(0.06, 0.05, 0.10)); // floor brightness
 
-  // Subtle flow in background
-  float flow = noise(uv * 3.0 + vec2(t*0.15, t*0.1));
-  bgCol += palette(flow + t*0.02) * 0.06 * rms;
-
-  // ─── Scattered shapes ──────────────────────────────────────────────
+  // ─── Scattered shapes (constant motion, audio-triggered visibility) ─
   vec3 col = bgCol;
 
-  // 20 shapes via unrolled loop (each shape has unique random properties)
-  for (int i = 0; i < 20; i++) {
+  for (int i = 0; i < 24; i++) {
     float fi = float(i);
     vec2 seed = vec2(fi * 7.31, fi * 13.17);
     vec2 rnd = hash2(seed);
@@ -143,56 +138,65 @@ void main() {
     float rnd3 = hash(seed + 200.0);
     float rnd4 = hash(seed + 300.0);
 
-    // Random position that drifts over time
-    float speed = 0.05 + rnd3 * 0.15 + mid * 0.1;
-    float angle = rnd4 * 6.28 + t * (rnd2 - 0.5) * 0.3;
+    // ── Constant-speed drift (NOT audio-driven) ──
+    float speed = 0.06 + rnd3 * 0.12;
     vec2 pos = vec2(
-      sin(fi * 2.39 + t * speed) * (0.6 + rnd.x * 0.6) * aspect,
-      cos(fi * 1.73 + t * speed * 0.8) * (0.5 + rnd.y * 0.5)
+      sin(fi * 2.39 + t * speed) * (0.55 + rnd.x * 0.5) * aspect,
+      cos(fi * 1.73 + t * speed * 0.7) * (0.45 + rnd.y * 0.45)
     );
 
-    // Shape type from hash
     float shapeType = rnd2;
+    float size = 0.04 + rnd.x * 0.05;
 
-    // Size: bass pulses, plus individual variation
-    float size = 0.04 + rnd.x * 0.06 + bass * 0.03 + beat * 0.02;
-
-    // Rotation per shape
+    // Constant slow rotation
+    float angle = rnd4 * 6.28 + t * (rnd3 - 0.5) * 0.3;
     vec2 lp = uv - pos;
-    lp = rot2(angle + t * (rnd3 - 0.5) * 0.5) * lp;
+    lp = rot2(angle) * lp;
 
-    // SDF distance
     float d = drawShape(lp, shapeType, size);
 
-    // Per-shape color from palette
-    float palT = rnd4 + t * 0.05 + bass * 0.1;
-    vec3 shapeCol = palette(palT) * (0.8 + high * 0.4);
+    // Color (slowly shifting, not jerky)
+    float palT = rnd4 + t * 0.03;
+    vec3 shapeCol = palette(palT) * 1.2;
+
+    // ── Audio-triggered VISIBILITY ──
+    // Each shape is linked to a frequency range based on its index:
+    //   shapes 0-7: bass-triggered
+    //   shapes 8-15: mid-triggered
+    //   shapes 16-23: high-triggered
+    float trigger;
+    if (fi < 8.0) {
+      trigger = bass;
+    } else if (fi < 16.0) {
+      trigger = mid;
+    } else {
+      trigger = high;
+    }
+
+    // Shape appears when its trigger is above a per-shape threshold
+    float threshold = rnd.y * 0.5 + 0.15; // 0.15 to 0.65
+    float appear = smoothstep(threshold - 0.05, threshold + 0.05, trigger);
+
+    // Beat: all shapes get a brightness boost
+    float beatBoost = beat * 0.4;
 
     // Glow + edge + fill
-    float glow = exp(-max(d, 0.0) * 12.0) * 0.3;
-    float edge = smoothstep(0.008, 0.0, abs(d));
-    float fill = smoothstep(0.003, -0.01, d) * 0.2;
+    float glow = exp(-max(d, 0.0) * 10.0) * 0.35;
+    float edge = smoothstep(0.006, 0.0, abs(d));
+    float fill = smoothstep(0.003, -0.015, d) * 0.25;
 
-    // Opacity: shapes fade based on distance from center
-    float distFromCenter = length(pos) / (aspect * 0.8);
-    float opacity = (0.5 + rms * 0.5) * (1.0 - distFromCenter * 0.4);
+    float opacity = appear * (0.7 + beatBoost);
 
     col += shapeCol * (glow + fill) * opacity;
-    col += vec3(0.5, 0.95, 0.9) * edge * opacity * 0.7;
+    col += vec3(0.5, 0.95, 0.9) * edge * opacity * 0.6;
   }
 
-  // ─── Bass pulse (radial) ───────────────────────────────────────────
+  // ─── Beat flash (subtle) ───────────────────────────────────────────
+  col += vec3(0.25, 0.75, 0.7) * beat * 0.25;
+
+  // ─── Vignette (gentle) ─────────────────────────────────────────────
   float dist = length(uv / vec2(aspect, 1.0));
-  col *= 1.0 + bass * 0.25 * (1.0 - smoothstep(0.0, 1.0, dist));
-
-  // ─── Beat flash ────────────────────────────────────────────────────
-  col += vec3(0.3, 0.85, 0.8) * beat * 0.35;
-
-  // ─── Brightness ────────────────────────────────────────────────────
-  col *= 0.6 + rms * 0.5;
-
-  // ─── Vignette ──────────────────────────────────────────────────────
-  col *= 1.0 - smoothstep(0.5, 1.8, dist);
+  col *= 1.0 - smoothstep(0.7, 2.0, dist) * 0.4;
 
   col = pow(clamp(col, 0.0, 1.0), vec3(0.92));
   fragColor = vec4(col, 1.0);
