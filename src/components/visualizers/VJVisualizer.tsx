@@ -27,155 +27,90 @@ uniform float u_high;
 uniform float u_rms;
 uniform float u_beat;
 
-// ─── Math Helpers ─────────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
-mat2 rot2(float a) {
-  float s = sin(a), c = cos(a);
-  return mat2(c, -s, s, c);
-}
-
-// ─── Hash & Noise ─────────────────────────────────────────────────────────────
+mat2 rot2(float a) { float s=sin(a),c=cos(a); return mat2(c,-s,s,c); }
 
 float hash(vec2 p) {
-  vec3 p3 = fract(vec3(p.xyx) * 0.1031);
-  p3 += dot(p3, p3.yzx + 33.33);
-  return fract((p3.x + p3.y) * p3.z);
+  vec3 p3 = fract(vec3(p.xyx)*0.1031);
+  p3 += dot(p3,p3.yzx+33.33);
+  return fract((p3.x+p3.y)*p3.z);
+}
+
+vec2 hash2(vec2 p) {
+  return vec2(hash(p), hash(p + vec2(127.1, 311.7)));
 }
 
 float noise(vec2 p) {
-  vec2 i = floor(p);
-  vec2 f = fract(p);
-  f = f * f * (3.0 - 2.0 * f);
-  float a = hash(i);
-  float b = hash(i + vec2(1.0, 0.0));
-  float c = hash(i + vec2(0.0, 1.0));
-  float d = hash(i + vec2(1.0, 1.0));
-  return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+  vec2 i=floor(p), f=fract(p);
+  f=f*f*(3.0-2.0*f);
+  return mix(mix(hash(i),hash(i+vec2(1,0)),f.x),mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),f.x),f.y);
 }
-
-float fbm4(vec2 p) {
-  float sum = 0.0, amp = 0.5, freq = 1.0;
-  for (int i = 0; i < 4; i++) { sum += noise(p * freq) * amp; freq *= 2.0; amp *= 0.5; }
-  return sum;
-}
-float fbm6(vec2 p) {
-  float sum = 0.0, amp = 0.5, freq = 1.0;
-  for (int i = 0; i < 6; i++) { sum += noise(p * freq) * amp; freq *= 2.0; amp *= 0.5; }
-  return sum;
-}
-
-// ─── Inigo Quilez Palette ─────────────────────────────────────────────────────
 
 vec3 palette(float t) {
-  vec3 a = vec3(0.24, 0.58, 0.58);
-  vec3 b = vec3(0.24, 0.48, 0.38);
-  vec3 c = vec3(1.0, 1.0, 1.0);
-  vec3 d = vec3(0.52, 0.80, 0.55);
-  return a + b * cos(6.28318 * (c * t + d));
+  vec3 a=vec3(0.24,0.58,0.58), b=vec3(0.24,0.48,0.38);
+  vec3 c=vec3(1.0), d=vec3(0.52,0.80,0.55);
+  return a + b * cos(6.28318*(c*t+d));
 }
 
-// ─── SDF Primitives ───────────────────────────────────────────────────────────
+// ─── SDF Shapes ───────────────────────────────────────────────────────────────
 
-float sdCircle(vec2 p, float r) {
-  return length(p) - r;
+float sdCircle(vec2 p, float r) { return length(p)-r; }
+float sdRing(vec2 p, float r, float w) { return abs(length(p)-r)-w; }
+float sdBox(vec2 p, vec2 b) { vec2 d=abs(p)-b; return length(max(d,0.0))+min(max(d.x,d.y),0.0); }
+
+float sdTriangle(vec2 p, float r) {
+  p.y += r * 0.3;
+  float k = sqrt(3.0);
+  p.x = abs(p.x) - r;
+  p.y = p.y + r/k;
+  if(p.x+k*p.y > 0.0) p = vec2(p.x-k*p.y,-k*p.x-p.y)/2.0;
+  p.x -= clamp(p.x,-2.0*r,0.0);
+  return -length(p)*sign(p.y);
 }
 
-float sdBox(vec2 p, vec2 b) {
-  vec2 d = abs(p) - b;
-  return length(max(d, 0.0)) + min(max(d.x, d.y), 0.0);
+float sdDiamond(vec2 p, float r) {
+  p = abs(p);
+  return (p.x+p.y-r)*0.707;
 }
 
-float sdRoundBox(vec2 p, vec2 b, float r) {
-  return sdBox(p, b - r) - r;
+float sdArrow(vec2 p, float size) {
+  float shaft = sdBox(p - vec2(-size*0.2, 0.0), vec2(size*0.5, size*0.12));
+  float head = sdTriangle(vec2(p.x - size*0.3, p.y) * vec2(-1.0, 1.0), size*0.35);
+  return min(shaft, head);
 }
 
-float sdCross(vec2 p, float size, float thick) {
-  float d1 = sdBox(p, vec2(size, thick));
-  float d2 = sdBox(p, vec2(thick, size));
-  return min(d1, d2);
+float sdCross(vec2 p, float size, float w) {
+  return min(sdBox(p, vec2(size, w)), sdBox(p, vec2(w, size)));
 }
 
-float sdRing(vec2 p, float r, float thick) {
-  return abs(length(p) - r) - thick;
+float sdStar(vec2 p, float r) {
+  float a = atan(p.y, p.x) + 1.57;
+  float seg = a / 1.2566; // 2pi/5
+  a = (fract(seg)-0.5) * 1.2566;
+  vec2 q = vec2(cos(a), abs(sin(a))) * length(p);
+  return max(q.x - r*0.7, q.y - r*0.35);
 }
 
-// Smooth min for metaball blending
-float smin(float d1, float d2, float k) {
-  float h = clamp(0.5 + 0.5 * (d2 - d1) / k, 0.0, 1.0);
-  return mix(d2, d1, h) - k * h * (1.0 - h);
-}
+// ─── Draw one shape by type index ─────────────────────────────────────────────
 
-// ─── Domain Warp ──────────────────────────────────────────────────────────────
-
-vec2 domainWarp(vec2 p, float amt, float t) {
-  float n1 = fbm4(p + vec2(t * 0.15, t * 0.12));
-  float n2 = fbm4(p + vec2(t * -0.1 + 5.2, t * 0.08 + 1.3));
-  vec2 w1 = vec2(n1, n2) * amt;
-  float n3 = fbm4(p + w1 + vec2(t * 0.07 + 1.7, t * -0.13 + 9.2));
-  float n4 = fbm4(p + w1 + vec2(t * -0.06 + 8.3, t * 0.09 + 2.8));
-  return w1 + vec2(n3, n4) * amt * 0.5;
-}
-
-// ─── Shape Layer (SDF composited) ─────────────────────────────────────────────
-
-float shapeLayer(vec2 uv, float t, float bass, float mid, float high, float beat) {
-  float d = 1e5;
-
-  // Blob (metaball): 2-3 spheres merging, bass drives size
-  float blobR = 0.18 + bass * 0.12;
-  vec2 b1 = vec2(sin(t * 0.4) * 0.3, cos(t * 0.35) * 0.25);
-  vec2 b2 = vec2(cos(t * 0.5) * 0.25, sin(t * 0.45 + 1.0) * 0.3);
-  vec2 b3 = vec2(sin(t * 0.3 + 2.0) * 0.2, cos(t * 0.55 + 0.5) * 0.2);
-  float blob = smin(sdCircle(uv - b1, blobR), sdCircle(uv - b2, blobR * 0.85), 0.2);
-  blob = smin(blob, sdCircle(uv - b3, blobR * 0.7), 0.15);
-  d = min(d, blob);
-
-  // Rounded rectangle: mid drives corner radius, beat kicks rotation
-  vec2 rp = uv - vec2(-0.15, 0.1);
-  rp = rot2(t * 0.2 + beat * 1.5) * rp;
-  float cornerR = 0.02 + mid * 0.06;
-  float rbox = sdRoundBox(rp, vec2(0.15, 0.1), cornerR);
-  d = min(d, rbox);
-
-  // Cross marker: beat pulses scale
-  vec2 cp = uv - vec2(-0.55, 0.45);
-  cp = rot2(t * 0.15) * cp;
-  float crossSize = 0.06 + beat * 0.04;
-  float cross = sdCross(cp, crossSize, 0.012);
-  d = min(d, cross);
-
-  // Ring trails around blob center
-  vec2 arcCenter = (b1 + b2) * 0.5;
-  vec2 ap = uv - arcCenter;
-  float ringR = 0.35 + mid * 0.1;
-  float ring1 = sdRing(ap, ringR, 0.008);
-  float ring2 = sdRing(ap, ringR * 0.75, 0.006);
-  d = min(d, min(ring1, ring2));
-
-  // Floating circles (small, scattered) — unrolled for compatibility
-  d = min(d, sdCircle(uv - vec2(sin(0.0 + t*0.2)*0.7, cos(0.0 + t*0.15)*0.5), 0.02 + 0.01*sin(t*0.8)));
-  d = min(d, sdCircle(uv - vec2(sin(2.1 + t*0.2)*0.7, cos(1.7 + t*0.15)*0.5), 0.02 + 0.01*sin(t*0.8+3.0)));
-  d = min(d, sdCircle(uv - vec2(sin(4.2 + t*0.2)*0.7, cos(3.4 + t*0.15)*0.5), 0.02 + 0.01*sin(t*0.8+6.0)));
-  d = min(d, sdCircle(uv - vec2(sin(6.3 + t*0.2)*0.7, cos(5.1 + t*0.15)*0.5), 0.02 + 0.01*sin(t*0.8+9.0)));
-  d = min(d, sdCircle(uv - vec2(sin(8.4 + t*0.2)*0.7, cos(6.8 + t*0.15)*0.5), 0.02 + 0.01*sin(t*0.8+12.0)));
-
-  // Dot grid (right area): high drives individual dot scale
-  vec2 gp = uv - vec2(0.45, -0.3);
-  gp = rot2(0.3) * gp;
-  vec2 gridId = floor(gp * 8.0);
-  vec2 gridUv = fract(gp * 8.0) - 0.5;
-  float dotR = 0.08 + high * 0.12 * (0.5 + 0.5 * sin(gridId.x * 1.3 + gridId.y * 2.1 + t));
-  float dots = sdCircle(gridUv, dotR);
-  d = min(d, dots);
-
-  return d;
+float drawShape(vec2 p, float shapeType, float size) {
+  float s = shapeType * 7.0;
+  if (s < 1.0) return sdCircle(p, size);
+  if (s < 2.0) return sdTriangle(p, size);
+  if (s < 3.0) return sdBox(p, vec2(size*0.8, size*0.8));
+  if (s < 4.0) return sdDiamond(p, size);
+  if (s < 5.0) return sdArrow(p, size);
+  if (s < 6.0) return sdCross(p, size, size*0.2);
+  return sdRing(p, size, size*0.15);
 }
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 void main() {
   vec2 uv = v_uv * 2.0 - 1.0;
-  uv.x *= u_resolution.x / u_resolution.y;
+  float aspect = u_resolution.x / u_resolution.y;
+  uv.x *= aspect;
 
   float t = u_time;
   float bass = clamp(u_bass, 0.0, 1.0);
@@ -184,62 +119,82 @@ void main() {
   float rms  = clamp(u_rms,  0.0, 1.0);
   float beat = clamp(u_beat, 0.0, 1.0);
 
-  // Beat zoom pulse
-  uv *= 1.0 - beat * 0.06;
+  // ─── Background: subtle gradient + noise ───────────────────────────
+  float bgNoise = noise(uv * 2.0 + t * 0.1) * 0.15;
+  vec3 bgCol = mix(
+    vec3(0.02, 0.02, 0.06),
+    vec3(0.06, 0.03, 0.10),
+    uv.y * 0.5 + 0.5
+  ) + bgNoise;
 
-  // Slow rotation
-  uv = rot2(t * (0.08 + mid * 0.12)) * uv;
+  // Subtle flow in background
+  float flow = noise(uv * 3.0 + vec2(t*0.15, t*0.1));
+  bgCol += palette(flow + t*0.02) * 0.06 * rms;
 
-  // ─── Background: domain warp flow ──────────────────────────────────
-  vec2 p = uv * (1.5 + bass * 0.4);
-  float warpAmt = 1.6 + bass * 2.0 + beat * 1.0;
-  vec2 warp = domainWarp(p, warpAmt, t);
-  vec2 warped = p + warp;
-
-  float pattern = mix(fbm4(warped), fbm6(warped), high);
-  float pattern2 = mix(fbm4(warped * 1.5 + vec2(3.7, 8.1) + t * 0.05), fbm6(warped * 1.5 + vec2(3.7, 8.1) + t * 0.05), high);
-  float combined = pattern * 0.6 + pattern2 * 0.4;
-  combined = clamp(pow(combined, 0.8) * 1.3, 0.0, 1.0);
-
-  float palIdx = combined + length(warp) * 0.12 + t * 0.025;
-  vec3 bgCol = palette(palIdx);
-  vec3 bgCol2 = palette(palIdx + 0.33 + bass * 0.08);
-  bgCol = mix(bgCol, bgCol2, pattern2 * 0.4);
-
-  // ─── Shapes SDF layer ──────────────────────────────────────────────
-  float shapeDist = shapeLayer(uv, t, bass, mid, high, beat);
-
-  // Shape rendering: glow + edge
-  float shapeGlow = exp(-max(shapeDist, 0.0) * 8.0) * 0.6;
-  float shapeEdge = smoothstep(0.01, 0.0, abs(shapeDist)) * 0.8;
-  float shapeFill = smoothstep(0.005, -0.02, shapeDist) * 0.35;
-
-  // Shape color: brighter palette
-  vec3 shapeCol = palette(palIdx + 0.5) * 1.4;
-  vec3 edgeCol = vec3(0.6, 0.95, 0.95); // cyan-white for edges
-
-  // Compose shape onto background
+  // ─── Scattered shapes ──────────────────────────────────────────────
   vec3 col = bgCol;
-  col += shapeCol * shapeFill;
-  col += shapeCol * shapeGlow;
-  col += edgeCol * shapeEdge;
 
-  // ─── Bass radial pulse ─────────────────────────────────────────────
-  float dist = length(uv);
-  col *= 1.0 + bass * 0.35 * (1.0 - smoothstep(0.0, 1.8, dist));
+  // 20 shapes via unrolled loop (each shape has unique random properties)
+  for (int i = 0; i < 20; i++) {
+    float fi = float(i);
+    vec2 seed = vec2(fi * 7.31, fi * 13.17);
+    vec2 rnd = hash2(seed);
+    float rnd2 = hash(seed + 100.0);
+    float rnd3 = hash(seed + 200.0);
+    float rnd4 = hash(seed + 300.0);
 
-  // ─── Brightness from RMS ───────────────────────────────────────────
-  col *= 0.5 + rms * 0.6;
+    // Random position that drifts over time
+    float speed = 0.05 + rnd3 * 0.15 + mid * 0.1;
+    float angle = rnd4 * 6.28 + t * (rnd2 - 0.5) * 0.3;
+    vec2 pos = vec2(
+      sin(fi * 2.39 + t * speed) * (0.6 + rnd.x * 0.6) * aspect,
+      cos(fi * 1.73 + t * speed * 0.8) * (0.5 + rnd.y * 0.5)
+    );
 
-  // ─── Vignette ──────────────────────────────────────────────────────
-  col *= 1.0 - smoothstep(0.6, 2.0, dist);
+    // Shape type from hash
+    float shapeType = rnd2;
+
+    // Size: bass pulses, plus individual variation
+    float size = 0.04 + rnd.x * 0.06 + bass * 0.03 + beat * 0.02;
+
+    // Rotation per shape
+    vec2 lp = uv - pos;
+    lp = rot2(angle + t * (rnd3 - 0.5) * 0.5) * lp;
+
+    // SDF distance
+    float d = drawShape(lp, shapeType, size);
+
+    // Per-shape color from palette
+    float palT = rnd4 + t * 0.05 + bass * 0.1;
+    vec3 shapeCol = palette(palT) * (0.8 + high * 0.4);
+
+    // Glow + edge + fill
+    float glow = exp(-max(d, 0.0) * 12.0) * 0.3;
+    float edge = smoothstep(0.008, 0.0, abs(d));
+    float fill = smoothstep(0.003, -0.01, d) * 0.2;
+
+    // Opacity: shapes fade based on distance from center
+    float distFromCenter = length(pos) / (aspect * 0.8);
+    float opacity = (0.5 + rms * 0.5) * (1.0 - distFromCenter * 0.4);
+
+    col += shapeCol * (glow + fill) * opacity;
+    col += vec3(0.5, 0.95, 0.9) * edge * opacity * 0.7;
+  }
+
+  // ─── Bass pulse (radial) ───────────────────────────────────────────
+  float dist = length(uv / vec2(aspect, 1.0));
+  col *= 1.0 + bass * 0.25 * (1.0 - smoothstep(0.0, 1.0, dist));
 
   // ─── Beat flash ────────────────────────────────────────────────────
-  col += vec3(0.35, 0.9, 0.85) * beat * 0.4;
+  col += vec3(0.3, 0.85, 0.8) * beat * 0.35;
 
-  // ─── Tone mapping & gamma ──────────────────────────────────────────
-  col = pow(clamp(col, 0.0, 1.0), vec3(0.9));
+  // ─── Brightness ────────────────────────────────────────────────────
+  col *= 0.6 + rms * 0.5;
 
+  // ─── Vignette ──────────────────────────────────────────────────────
+  col *= 1.0 - smoothstep(0.5, 1.8, dist);
+
+  col = pow(clamp(col, 0.0, 1.0), vec3(0.92));
   fragColor = vec4(col, 1.0);
 }
 `;
