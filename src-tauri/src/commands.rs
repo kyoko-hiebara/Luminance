@@ -171,9 +171,9 @@ pub fn submit_frame(
     let bytes = base64::engine::general_purpose::STANDARD
         .decode(&frame_data)
         .map_err(|e| format!("Base64 decode error: {}", e))?;
-    let mut render_lock = state.render.lock().map_err(|e| e.to_string())?;
-    let render = render_lock.as_mut().ok_or("No active render")?;
-    let ffmpeg = render.ffmpeg.as_mut().ok_or("FFmpeg not running")?;
+    let render_lock = state.render.lock().map_err(|e| e.to_string())?;
+    let render = render_lock.as_ref().ok_or("No active render")?;
+    let ffmpeg = render.ffmpeg.as_ref().ok_or("FFmpeg not running")?;
     ffmpeg.write_frame(&bytes).map_err(|e| format!("FFmpeg write error: {}", e))
 }
 

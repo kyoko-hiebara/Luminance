@@ -1,5 +1,7 @@
-use std::io::Write;
-use std::process::{Child, ChildStdin, Command, Stdio};
+use std::io::{BufWriter, Write};
+use std::process::{Child, Command, Stdio};
+use std::sync::mpsc;
+use std::thread;
 
 use anyhow::{Context, Result};
 
@@ -33,9 +35,11 @@ pub fn detect_hw_encoder(ffmpeg_path: &str) -> Option<String> {
     }
 }
 
+/// Wraps FFmpeg with a background writer thread so write_frame never blocks the caller.
 pub struct FfmpegProcess {
     child: Child,
-    stdin: ChildStdin,
+    frame_tx: Option<mpsc::Sender<Vec<u8>>>,
+    writer_thread: Option<thread::JoinHandle<Result<(), String>>>,
 }
 
 impl FfmpegProcess {
@@ -50,8 +54,6 @@ impl FfmpegProcess {
     ) -> Result<Self> {
         let mut args = vec![
             "-y".to_string(),
-            // Real-time timestamps: each frame gets a wallclock timestamp
-            // so FFmpeg knows the actual timing regardless of capture speed
             "-use_wallclock_as_timestamps".into(),
             "1".into(),
             "-f".into(),
@@ -64,9 +66,7 @@ impl FfmpegProcess {
             audio_path.to_string(),
         ];
 
-        // Video codec — always use libx264 for maximum compatibility
-        // HW encoders (NVENC, VideoToolbox) fail on odd resolutions and driver quirks
-        let _ = hw_encoder; // reserved for future use
+        let _ = hw_encoder;
         args.extend([
             "-c:v".into(),
             "libx264".into(),
@@ -76,14 +76,13 @@ impl FfmpegProcess {
             "18".into(),
         ]);
 
-        // Pad to even dimensions (H.264 requires even width/height)
         args.extend([
             "-vf".into(),
             "pad=ceil(iw/2)*2:ceil(ih/2)*2".into(),
             "-pix_fmt".into(),
             "yuv420p".into(),
             "-r".into(),
-            "30".into(),
+            fps.to_string(),
             "-vsync".into(),
             "cfr".into(),
             "-c:a".into(),
@@ -106,25 +105,56 @@ impl FfmpegProcess {
 
         let stdin = child.stdin.take().context("Failed to get ffmpeg stdin")?;
 
-        Ok(Self { child, stdin })
+        // Background writer thread with large buffer — write_frame never blocks the caller
+        let (frame_tx, frame_rx) = mpsc::channel::<Vec<u8>>();
+        let writer_thread = thread::spawn(move || {
+            let mut writer = BufWriter::with_capacity(4 * 1024 * 1024, stdin); // 4MB buffer
+            for frame_data in frame_rx {
+                if let Err(e) = writer.write_all(&frame_data) {
+                    return Err(format!("FFmpeg write error: {}", e));
+                }
+            }
+            if let Err(e) = writer.flush() {
+                return Err(format!("FFmpeg flush error: {}", e));
+            }
+            Ok(())
+        });
+
+        Ok(Self {
+            child,
+            frame_tx: Some(frame_tx),
+            writer_thread: Some(writer_thread),
+        })
     }
 
-    pub fn write_frame(&mut self, jpeg_data: &[u8]) -> Result<()> {
-        self.stdin
-            .write_all(jpeg_data)
-            .context("Failed to write frame to ffmpeg")
+    pub fn write_frame(&self, jpeg_data: &[u8]) -> Result<()> {
+        if let Some(tx) = &self.frame_tx {
+            tx.send(jpeg_data.to_vec())
+                .map_err(|e| anyhow::anyhow!("FFmpeg pipe closed: {}", e))?;
+        }
+        Ok(())
     }
 
     pub fn finish(mut self) -> Result<()> {
-        // Explicitly close stdin to signal EOF to FFmpeg
-        drop(self.stdin);
+        // Close the channel to signal EOF to the writer thread
+        drop(self.frame_tx.take());
+
+        // Wait for writer thread to flush
+        if let Some(handle) = self.writer_thread.take() {
+            handle
+                .join()
+                .map_err(|_| anyhow::anyhow!("Writer thread panicked"))?
+                .map_err(|e| anyhow::anyhow!("{}", e))?;
+        }
+
+        // Wait for FFmpeg to finish encoding
         let output = self
             .child
             .wait_with_output()
             .context("Failed to wait for ffmpeg")?;
+
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            // Show the LAST 1000 chars of stderr (FFmpeg puts the actual error at the end)
             let stderr_str = stderr.to_string();
             let tail: String = if stderr_str.len() > 1000 {
                 format!("...{}", &stderr_str[stderr_str.len() - 1000..])
@@ -143,8 +173,6 @@ mod tests {
 
     #[test]
     fn test_find_ffmpeg() {
-        // This test just checks the function doesn't panic.
-        // On CI without ffmpeg, it returns None.
         let _result = find_ffmpeg();
     }
 }
