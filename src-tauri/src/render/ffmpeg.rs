@@ -54,10 +54,10 @@ impl FfmpegProcess {
     ) -> Result<Self> {
         let mut args = vec![
             "-y".to_string(),
-            "-use_wallclock_as_timestamps".into(),
-            "1".into(),
             "-f".into(),
             "image2pipe".into(),
+            "-framerate".into(),
+            fps.to_string(),
             "-c:v".into(),
             "mjpeg".into(),
             "-i".into(),
@@ -81,8 +81,8 @@ impl FfmpegProcess {
             "pad=ceil(iw/2)*2:ceil(ih/2)*2".into(),
             "-pix_fmt".into(),
             "yuv420p".into(),
-            "-vsync".into(),
-            "vfr".into(),
+            "-r".into(),
+            fps.to_string(),
             "-c:a".into(),
             "aac".into(),
             "-b:a".into(),

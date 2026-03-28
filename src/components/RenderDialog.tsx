@@ -115,8 +115,6 @@ export function RenderDialog({ audioPath, onClose }: Props) {
 
   const compositeRef = useRef<HTMLCanvasElement | null>(null);
   const renderingRef = useRef(false);
-  const rafIdRef = useRef(0);
-  const pendingRef = useRef(0);
 
   useEffect(() => {
     invoke<string | null>("check_ffmpeg").then((path) => {
@@ -139,7 +137,7 @@ export function RenderDialog({ audioPath, onClose }: Props) {
     const rect = layout.getBoundingClientRect();
     const width = Math.round(rect.width / 2) * 2;
     const height = Math.round(rect.height / 2) * 2;
-    const fps = 60;
+    const fps = 30;
 
     setPhase("rendering");
     setError(null);
@@ -169,35 +167,30 @@ export function RenderDialog({ audioPath, onClose }: Props) {
     }
 
     renderingRef.current = true;
-    pendingRef.current = 0;
     let frames = 0;
     let knownDuration = 0;
     let lastPosition = 0;
     let staleCount = 0;
+    let lastCheckPos = 0;
 
     // Listen for transport position
     let unlistenAudio: UnlistenFn | null = null;
-    const setupListener = async () => {
-      unlistenAudio = await listen<AudioData>("audio-data", (event) => {
-        const t = event.payload.transport;
-        if (t) {
-          knownDuration = t.duration_secs;
-          lastPosition = t.position_secs;
-          setDuration(t.duration_secs);
-          setPosition(t.position_secs);
-        }
-      });
-    };
-    setupListener();
+    unlistenAudio = await listen<AudioData>("audio-data", (event) => {
+      const t = event.payload.transport;
+      if (t) {
+        knownDuration = t.duration_secs;
+        lastPosition = t.position_secs;
+        setDuration(t.duration_secs);
+        setPosition(t.position_secs);
+      }
+    });
 
     const finishRecording = async () => {
       if (!renderingRef.current) return;
       renderingRef.current = false;
-      cancelAnimationFrame(rafIdRef.current);
       unlistenAudio?.();
-
       setPhase("encoding");
-      await new Promise((r) => setTimeout(r, 300));
+      await new Promise((r) => setTimeout(r, 200));
       try {
         await invoke("finish_render");
         setPhase("complete");
@@ -207,58 +200,50 @@ export function RenderDialog({ audioPath, onClose }: Props) {
       }
     };
 
-    // Capture loop — send frames as fast as possible, FFmpeg uses wallclock timestamps
-    let lastCheckTime = performance.now();
-    let lastCheckPos = 0;
+    // Fixed-rate capture loop: exactly 30fps, one frame at a time, await each submit.
+    // This guarantees 1:1 frame mapping with FFmpeg's -framerate 30.
+    const frameMs = 1000 / fps; // 33.3ms
 
-    const captureLoop = () => {
-      if (!renderingRef.current) return;
+    const run = async () => {
+      while (renderingRef.current) {
+        const t0 = performance.now();
 
-      const now = performance.now();
-
-      // End-of-playback check every 500ms
-      if (now - lastCheckTime > 500) {
-        lastCheckTime = now;
+        // End check
         if (knownDuration > 0 && lastPosition >= knownDuration - 0.15) {
-          finishRecording();
-          return;
+          await finishRecording(); return;
         }
         if (lastPosition > 0 && Math.abs(lastPosition - lastCheckPos) < 0.01) {
           staleCount++;
-          if (staleCount >= 4) { finishRecording(); return; }
-        } else {
-          staleCount = 0;
-        }
+          if (staleCount >= 90) { await finishRecording(); return; } // 3s at 30fps
+        } else { staleCount = 0; }
         lastCheckPos = lastPosition;
-      }
 
-      // Capture every rAF tick (backpressure limits throughput naturally)
-      if (pendingRef.current < 4) {
+        // Capture one frame
         const composite = compositeRef.current;
         if (composite) {
           const base64 = captureLayout(composite);
           if (base64) {
             frames++;
-            setFrameCount(frames);
-            pendingRef.current++;
-            invoke("submit_frame", { frameData: base64 })
-              .catch((e) => console.error("submit error:", e))
-              .finally(() => { pendingRef.current--; });
+            if (frames % 10 === 0) setFrameCount(frames);
+            try {
+              await invoke("submit_frame", { frameData: base64 });
+            } catch { break; }
           }
         }
-      }
 
-      if (renderingRef.current) {
-        rafIdRef.current = requestAnimationFrame(captureLoop);
+        // Sleep to maintain 30fps cadence
+        const elapsed = performance.now() - t0;
+        if (elapsed < frameMs) {
+          await new Promise((r) => setTimeout(r, frameMs - elapsed));
+        }
       }
     };
 
-    rafIdRef.current = requestAnimationFrame(captureLoop);
+    run();
   }, [audioPath]);
 
   const handleCancel = useCallback(async () => {
     renderingRef.current = false;
-    cancelAnimationFrame(rafIdRef.current);
     try { await invoke("cancel_render"); } catch { /* ignore */ }
     setPhase("cancelled");
   }, []);
