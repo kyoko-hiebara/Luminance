@@ -483,44 +483,72 @@ export function VJVisualizer({ width, height }: Props) {
     gl.bindVertexArray(null);
   });
 
-  const posStyle = TEXT_POSITIONS[textPosIdx % TEXT_POSITIONS.length];
-  const displayText = textRef.current || "";
+  // Draw VJ text on a 2D overlay canvas (captured automatically by render)
+  const overlayRef = useRef<HTMLCanvasElement>(null);
+  const overlayCtxCache = useRef<CanvasRenderingContext2D | null>(null);
+
+  useEffect(() => {
+    const c = overlayRef.current;
+    if (!c) return;
+    const dpr = window.devicePixelRatio || 1;
+    c.width = Math.floor(width * dpr);
+    c.height = Math.floor(height * dpr);
+    c.style.width = `${width}px`;
+    c.style.height = `${height}px`;
+    const ctx2 = c.getContext("2d");
+    if (ctx2) ctx2.scale(dpr, dpr);
+    overlayCtxCache.current = ctx2;
+  }, [width, height]);
+
+  useAnimationFrame(() => {
+    const ctx2 = overlayCtxCache.current;
+    if (!ctx2) return;
+    ctx2.clearRect(0, 0, width, height);
+
+    const displayText = textRef.current || "";
+    if (!textVisible || !displayText || textOpacity < 0.01) return;
+
+    const posStyle = TEXT_POSITIONS[textPosIdx % TEXT_POSITIONS.length];
+    const fontSize = Math.max(12, Math.min(24, width * 0.06));
+    const pad = 12;
+
+    // Compute text position
+    let tx: number, ty: number;
+    let align: CanvasTextAlign;
+
+    if (posStyle.justify === "flex-start") { tx = pad; align = "left"; }
+    else if (posStyle.justify === "flex-end") { tx = width - pad; align = "right"; }
+    else { tx = width / 2; align = "center"; }
+
+    if (posStyle.align === "flex-start") { ty = pad + fontSize; }
+    else if (posStyle.align === "flex-end") { ty = height - pad; }
+    else { ty = height / 2 + fontSize * 0.3; }
+
+    ctx2.save();
+    ctx2.globalAlpha = textOpacity;
+    ctx2.font = `bold ${fontSize}px monospace`;
+    ctx2.textAlign = align;
+    ctx2.textBaseline = "alphabetic";
+    ctx2.letterSpacing = "0.05em";
+
+    // Glow layers
+    ctx2.shadowColor = "rgba(139,92,246,0.6)";
+    ctx2.shadowBlur = 20;
+    ctx2.fillStyle = colors.textPrimary;
+    ctx2.fillText(displayText, tx, ty);
+
+    ctx2.shadowColor = "rgba(0,245,212,0.4)";
+    ctx2.shadowBlur = 8;
+    ctx2.fillText(displayText, tx, ty);
+
+    ctx2.shadowBlur = 0;
+    ctx2.restore();
+  });
 
   return (
     <div style={{ position: "relative", width, height, overflow: "hidden" }}>
-      <canvas ref={canvasRef} style={{ width, height, display: "block" }} />
-      {textVisible && displayText && (
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            display: "flex",
-            justifyContent: posStyle.justify,
-            alignItems: posStyle.align,
-            padding: 12,
-            pointerEvents: "none",
-            opacity: textOpacity,
-            transition: "opacity 0.15s ease",
-          }}
-        >
-          <span
-            data-vj-text
-            style={{
-              fontFamily: "monospace",
-              fontWeight: "bold",
-              fontSize: Math.max(12, Math.min(24, width * 0.06)),
-              color: colors.textPrimary,
-              textAlign: posStyle.textAlign,
-              textShadow: `0 0 20px rgba(139,92,246,0.6), 0 0 8px rgba(0,245,212,0.4), 0 0 2px rgba(255,255,255,0.3)`,
-              letterSpacing: "0.05em",
-              maxWidth: "90%",
-              wordBreak: "break-word",
-            }}
-          >
-            {displayText}
-          </span>
-        </div>
-      )}
+      <canvas ref={canvasRef} style={{ width, height, display: "block", position: "absolute", top: 0, left: 0 }} />
+      <canvas ref={overlayRef} style={{ width, height, display: "block", position: "absolute", top: 0, left: 0, pointerEvents: "none" }} />
     </div>
   );
 }

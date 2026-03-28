@@ -76,36 +76,6 @@ function captureLayout(compositeCanvas: HTMLCanvasElement): string | null {
     }
   }
 
-  // Draw any HTML text overlays (VJ text etc.) that sit on top of canvases
-  const overlayTexts = layout.querySelectorAll("[data-vj-text]");
-  for (const el of overlayTexts) {
-    const span = el as HTMLElement;
-    const spanRect = span.getBoundingClientRect();
-    const sx = spanRect.left - rect.left;
-    const sy = spanRect.top - rect.top;
-    const text = span.textContent || "";
-    if (!text || parseFloat(getComputedStyle(span.parentElement!).opacity) < 0.01) continue;
-    const opacity = parseFloat(getComputedStyle(span.parentElement!).opacity) || 1;
-    const fontSize = parseFloat(getComputedStyle(span).fontSize) || 16;
-    const textAlign = getComputedStyle(span).textAlign as CanvasTextAlign;
-
-    ctx.save();
-    ctx.globalAlpha = opacity;
-    ctx.font = `bold ${fontSize}px monospace`;
-    ctx.fillStyle = "#ededf4";
-    ctx.textAlign = textAlign === "right" ? "right" : textAlign === "center" ? "center" : "left";
-    ctx.textBaseline = "top";
-    ctx.shadowColor = "rgba(139,92,246,0.6)";
-    ctx.shadowBlur = 20;
-    const tx = textAlign === "right" ? sx + spanRect.width :
-               textAlign === "center" ? sx + spanRect.width / 2 : sx;
-    ctx.fillText(text, tx, sy);
-    ctx.shadowBlur = 8;
-    ctx.shadowColor = "rgba(0,245,212,0.4)";
-    ctx.fillText(text, tx, sy);
-    ctx.restore();
-  }
-
   // Draw panel title bars
   const titleBars = layout.querySelectorAll("[data-panel-title]");
   for (const tb of titleBars) {
