@@ -100,11 +100,14 @@ impl AudioEngine {
         );
         let _ = app.emit("file-analysis", &analysis);
 
-        let sample_rate = player.sample_rate();
+        let file_rate = player.sample_rate();
         let source_channels = player.channels() as usize;
-        let samples = Arc::new(player.interleaved().to_vec());
-        let total_frames = samples.len() / source_channels.max(1);
 
+        // Try the file's native sample rate first (most OS audio APIs handle conversion)
+        let samples = Arc::new(player.interleaved().to_vec());
+        let sample_rate = file_rate;
+
+        let total_frames = samples.len() / source_channels.max(1);
         let transport = TransportState::new(total_frames, sample_rate);
 
         let (ready_tx, ready_rx) = crossbeam_channel::bounded::<Result<(), String>>(1);
@@ -113,7 +116,31 @@ impl AudioEngine {
         let t = transport.clone();
         let audio_samples = samples.clone();
         let audio_thread = thread::spawn(move || {
-            match build_output_stream(audio_samples, source_channels, sample_rate, producer, t) {
+            // Try with file's native sample rate first
+            let result = build_output_stream(
+                audio_samples.clone(), source_channels, sample_rate, producer.clone(), t.clone()
+            ).or_else(|_| {
+                // If CPAL rejects the rate, resample to device rate and retry
+                let host = cpal::default_host();
+                let device_rate = host.default_output_device()
+                    .and_then(|d| d.default_output_config().ok())
+                    .map(|c| c.sample_rate().0)
+                    .unwrap_or(48000);
+
+                if device_rate == sample_rate {
+                    return Err(anyhow::anyhow!("Device rejected its own sample rate"));
+                }
+
+                let resampled = resample_interleaved(
+                    &audio_samples, source_channels, sample_rate, device_rate
+                )?;
+                let new_samples = Arc::new(resampled);
+                let new_total = new_samples.len() / source_channels.max(1);
+                t.total_frames.store(new_total, Ordering::Relaxed);
+                build_output_stream(new_samples, source_channels, device_rate, producer, t)
+            });
+
+            match result {
                 Ok(stream) => {
                     let _ = ready_tx.send(Ok(()));
                     while audio_running.load(Ordering::Relaxed) {
@@ -155,6 +182,91 @@ impl AudioEngine {
             let _ = handle.join();
         }
     }
+}
+
+/// Resample interleaved audio from one sample rate to another using rubato.
+fn resample_interleaved(
+    interleaved: &[f32],
+    channels: usize,
+    from_rate: u32,
+    to_rate: u32,
+) -> Result<Vec<f32>> {
+    use rubato::{SincFixedIn, SincInterpolationParameters, SincInterpolationType, WindowFunction, Resampler};
+
+    let params = SincInterpolationParameters {
+        sinc_len: 64,
+        f_cutoff: 0.95,
+        interpolation: SincInterpolationType::Linear,
+        oversampling_factor: 128,
+        window: WindowFunction::BlackmanHarris2,
+    };
+
+    let ch = channels.max(1);
+    let total_frames = interleaved.len() / ch;
+    let chunk_size = 1024;
+
+    let mut resampler = SincFixedIn::<f32>::new(
+        to_rate as f64 / from_rate as f64,
+        2.0,
+        params,
+        chunk_size,
+        ch,
+    )?;
+
+    // Deinterleave entire file into per-channel vectors
+    let mut channel_bufs: Vec<Vec<f32>> = (0..ch).map(|_| Vec::with_capacity(total_frames)).collect();
+    for frame in 0..total_frames {
+        for c in 0..ch {
+            channel_bufs[c].push(interleaved[frame * ch + c]);
+        }
+    }
+
+    // Process in chunks
+    let ratio = to_rate as f64 / from_rate as f64;
+    let estimated_out = (total_frames as f64 * ratio) as usize + chunk_size;
+    let mut output_channels: Vec<Vec<f32>> = (0..ch).map(|_| Vec::with_capacity(estimated_out)).collect();
+
+    let mut pos = 0;
+    while pos < total_frames {
+        let end = (pos + chunk_size).min(total_frames);
+        let chunk_len = end - pos;
+
+        // Pad to chunk_size if needed (last chunk)
+        let chunks: Vec<Vec<f32>> = (0..ch)
+            .map(|c| {
+                let mut v = channel_bufs[c][pos..end].to_vec();
+                v.resize(chunk_size, 0.0);
+                v
+            })
+            .collect();
+
+        let refs: Vec<&[f32]> = chunks.iter().map(|v| v.as_slice()).collect();
+        let resampled = resampler.process(&refs, None)?;
+
+        // Only take proportional output for partial last chunk
+        let out_len = if chunk_len < chunk_size {
+            (chunk_len as f64 * ratio).ceil() as usize
+        } else {
+            resampled[0].len()
+        };
+
+        for c in 0..ch {
+            output_channels[c].extend_from_slice(&resampled[c][..out_len.min(resampled[c].len())]);
+        }
+
+        pos += chunk_size;
+    }
+
+    // Re-interleave
+    let out_frames = output_channels[0].len();
+    let mut output = Vec::with_capacity(out_frames * ch);
+    for f in 0..out_frames {
+        for c in 0..ch {
+            output.push(output_channels[c][f]);
+        }
+    }
+
+    Ok(output)
 }
 
 fn build_output_stream(

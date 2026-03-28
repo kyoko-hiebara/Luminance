@@ -15,6 +15,7 @@ cpal = { version = "0.15", features = [] }
 rustfft = "6"
 symphonia = { version = "0.5", features = ["mp3", "ogg", "flac", "wav", "aac"] }
 crossbeam-channel = "0.5"
+rubato = "0.16"
 base64 = "0.22"
 thiserror = "1"
 anyhow = "1"
