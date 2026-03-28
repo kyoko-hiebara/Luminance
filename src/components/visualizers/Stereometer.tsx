@@ -180,17 +180,20 @@ export function Stereometer({ width, height }: Props) {
       const levelH = rmsN * barFullH;
       const levelY = barBot - levelH;
 
-      // Color at the peak position for the glow
-      const peakHue = rmsN * 280; // 0=red, 280=purple
-      const glowColor = `hsl(${peakHue},85%,55%)`;
-
-      // Big ambient glow (bleeds wide into the panel)
+      // Rainbow glow: draw multiple strips along the bar, each with its own hue
       ctx.save();
-      ctx.shadowColor = glowColor;
-      ctx.shadowBlur = 25 + rmsN * 40;
-      ctx.fillStyle = glowColor;
-      ctx.globalAlpha = 0.5 + rmsN * 0.4;
-      ctx.fillRect(x - 4, levelY, sideBarW + 8, levelH);
+      const glowSteps = 8;
+      const stepH = levelH / glowSteps;
+      for (let g = 0; g < glowSteps; g++) {
+        const t = g / (glowSteps - 1); // 0=bottom(red), 1=top(purple)
+        const hue = t * 280;
+        const sy = levelY + levelH - (g + 1) * stepH;
+        ctx.shadowColor = `hsl(${hue},90%,55%)`;
+        ctx.shadowBlur = 25 + rmsN * 40;
+        ctx.fillStyle = `hsl(${hue},90%,55%)`;
+        ctx.globalAlpha = (0.4 + rmsN * 0.4) / glowSteps * 3.0;
+        ctx.fillRect(x - 4, sy, sideBarW + 8, stepH + 1);
+      }
       ctx.restore();
 
       // Main bar fill — rainbow gradient
