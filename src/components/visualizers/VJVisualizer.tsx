@@ -368,12 +368,12 @@ export function VJVisualizer({ width, height }: Props) {
       }
 
       if (shouldShow) {
-        // Fade in/out within the 4-bar window
+        // Fade in/out within the 4-bar window — long smooth transitions
         const progress = barInBlock / 4; // 0..1 over 4 bars
         let opacity = 1;
-        if (progress < 0.1) opacity = progress / 0.1;          // fade in
-        else if (progress > 0.8) opacity = (1 - progress) / 0.2; // fade out
-        setTextOpacity(opacity);
+        if (progress < 0.25) opacity = progress / 0.25;             // 1 bar fade in
+        else if (progress > 0.65) opacity = (1 - progress) / 0.35;  // ~1.4 bars fade out
+        setTextOpacity(Math.max(0, Math.min(1, opacity)));
         setTextVisible(true);
       } else {
         setTextVisible(false);
@@ -546,7 +546,7 @@ export function VJVisualizer({ width, height }: Props) {
   });
 
   return (
-    <div style={{ position: "relative", width, height, overflow: "hidden" }}>
+    <div style={{ position: "relative", width, height, overflow: "hidden", borderRadius: 8 }}>
       <canvas ref={canvasRef} style={{ width, height, display: "block", position: "absolute", top: 0, left: 0 }} />
       <canvas ref={overlayRef} style={{ width, height, display: "block", position: "absolute", top: 0, left: 0, pointerEvents: "none" }} />
     </div>
