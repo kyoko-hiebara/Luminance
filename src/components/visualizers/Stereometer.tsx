@@ -181,25 +181,22 @@ export function Stereometer({ width, height }: Props) {
       const levelH = rmsN * barFullH;
       const levelY = barBot - levelH;
 
-      // Rainbow glow: horizontal gradient per strip (transparent → color → transparent)
-      const glowSteps = 6;
-      const stepH = Math.max(1, levelH / glowSteps);
-      const spread = 20 + rmsN * 35;
+      // Rainbow glow: small dots with shadowBlur (same technique as Spectrum sparkles)
       const cx = x + sideBarW / 2;
-      for (let g = 0; g < glowSteps; g++) {
-        const t = glowSteps > 1 ? g / (glowSteps - 1) : 0;
+      const dots = 8;
+      ctx.save();
+      for (let g = 0; g < dots; g++) {
+        const t = dots > 1 ? g / (dots - 1) : 0;
         const hue = t * 280;
-        const sy = levelY + levelH - (g + 1) * stepH;
-        const a = 0.2 + rmsN * 0.3;
-        const grad = ctx.createLinearGradient(cx - spread, 0, cx + spread, 0);
-        grad.addColorStop(0, `hsla(${hue},90%,55%,0)`);
-        grad.addColorStop(0.35, `hsla(${hue},90%,55%,${a})`);
-        grad.addColorStop(0.5, `hsla(${hue},90%,60%,${a * 1.2})`);
-        grad.addColorStop(0.65, `hsla(${hue},90%,55%,${a})`);
-        grad.addColorStop(1, `hsla(${hue},90%,55%,0)`);
-        ctx.fillStyle = grad;
-        ctx.fillRect(cx - spread, sy, spread * 2, stepH + 1);
+        const dy = barBot - t * levelH;
+        ctx.shadowColor = `hsl(${hue},90%,60%)`;
+        ctx.shadowBlur = 15 + rmsN * 25;
+        ctx.fillStyle = `hsla(${hue},90%,60%,${0.4 + rmsN * 0.4})`;
+        ctx.beginPath();
+        ctx.arc(cx, dy, 2 + rmsN * 1.5, 0, Math.PI * 2);
+        ctx.fill();
       }
+      ctx.restore();
 
       // Main bar fill — rainbow gradient (opaque, covers glow center)
       ctx.fillStyle = rainbowGrad;
