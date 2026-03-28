@@ -48,9 +48,24 @@ float noise(vec2 p) {
 }
 
 vec3 palette(float t) {
+  return vec3(0.5) + vec3(0.5) * cos(6.28318*(vec3(1.0)*t+vec3(0.0,0.33,0.67)));
+}
+vec3 palWarm(float t) {
+  return vec3(0.5) + vec3(0.5) * cos(6.28318*(vec3(1.0,0.7,0.4)*t+vec3(0.0,0.15,0.20)));
+}
+vec3 palNeon(float t) {
+  return vec3(0.5) + vec3(0.5) * cos(6.28318*(vec3(2.0,1.0,0.0)*t+vec3(0.5,0.2,0.25)));
+}
+vec3 palCyan(float t) {
   vec3 a=vec3(0.24,0.58,0.58), b=vec3(0.24,0.48,0.38);
-  vec3 c=vec3(1.0), d=vec3(0.52,0.80,0.55);
-  return a + b * cos(6.28318*(c*t+d));
+  return a + b * cos(6.28318*(t+vec3(0.52,0.80,0.55)));
+}
+
+float fbm(vec2 p) {
+  float v = 0.0, a = 0.5;
+  mat2 rm = mat2(0.8, 0.6, -0.6, 0.8);
+  for (int i = 0; i < 5; i++) { v += a * noise(p); p = rm * p * 2.0; a *= 0.5; }
+  return v;
 }
 
 // ─── SDF Shapes ───────────────────────────────────────────────────────────────
@@ -119,18 +134,45 @@ void main() {
   float rms  = clamp(u_rms,  0.0, 1.0);
   float beat = clamp(u_beat, 0.0, 1.0);
 
-  // ─── Background: bright flowing gradient ────────────────────────────
-  float bgNoise = noise(uv * 2.5 + t * 0.08) * 0.2;
-  float bgFlow = noise(uv * 1.5 + vec2(t * 0.12, t * 0.09));
-  vec3 bgCol = palette(bgFlow * 0.5 + t * 0.015 + uv.y * 0.15) * 0.35;
-  bgCol += palette(bgFlow * 0.3 + 0.5 + t * 0.01) * 0.15;
-  bgCol += bgNoise * 0.08;
-  bgCol = max(bgCol, vec3(0.06, 0.05, 0.10)); // floor brightness
+  // ─── Background: Domain Warp Flow (from reference) ──────────────────
+  float ft = t * 0.25;
+  vec2 p = uv * 2.5;
+
+  // First warp layer — slow, large scale
+  vec2 q = vec2(
+    fbm(p + vec2(0.0, 0.0) + ft * 0.3),
+    fbm(p + vec2(5.2, 1.3) + ft * 0.2)
+  );
+
+  // Second warp layer
+  vec2 r = vec2(
+    fbm(p + 4.0 * q + vec2(1.7, 9.2) + ft * 0.15 + mid * 1.5),
+    fbm(p + 4.0 * q + vec2(8.3, 2.8) + ft * 0.12 + bass * 1.2)
+  );
+
+  // Final fbm
+  float f = fbm(p + 4.0 * r + high * 0.5);
+
+  // Color mixing — multi-palette blend
+  vec3 warmPal = palWarm(f + t * 0.05);
+  vec3 neonPal = palNeon(length(q) + ft * 0.1);
+  vec3 defPal = palette(length(r) + t * 0.03);
+
+  vec3 bgCol = mix(vec3(0.05, 0.02, 0.1), warmPal, clamp(f * f * 2.0, 0.0, 1.0));
+  bgCol = mix(bgCol, neonPal, clamp(length(q) * 0.4, 0.0, 1.0));
+  bgCol = mix(bgCol, defPal, clamp(length(r) * r.x * 0.8, 0.0, 1.0));
+
+  // Bass pulse — radial
+  float pulse = exp(-length(uv) * (2.0 - bass * 1.5)) * bass * 0.4;
+  bgCol += neonPal * pulse;
+
+  // Beat flash on background
+  bgCol *= 1.0 + beat * 0.6;
 
   // ─── Scattered shapes (constant motion, audio-triggered visibility) ─
   vec3 col = bgCol;
 
-  for (int i = 0; i < 24; i++) {
+  for (int i = 0; i < 40; i++) {
     float fi = float(i);
     vec2 seed = vec2(fi * 7.31, fi * 13.17);
     vec2 rnd = hash2(seed);
@@ -165,9 +207,9 @@ void main() {
     //   shapes 8-15: mid-triggered
     //   shapes 16-23: high-triggered
     float trigger;
-    if (fi < 8.0) {
+    if (fi < 14.0) {
       trigger = bass;
-    } else if (fi < 16.0) {
+    } else if (fi < 28.0) {
       trigger = mid;
     } else {
       trigger = high;
@@ -194,11 +236,10 @@ void main() {
   // ─── Beat flash (subtle) ───────────────────────────────────────────
   col += vec3(0.25, 0.75, 0.7) * beat * 0.25;
 
-  // ─── Vignette (gentle) ─────────────────────────────────────────────
-  float dist = length(uv / vec2(aspect, 1.0));
-  col *= 1.0 - smoothstep(0.7, 2.0, dist) * 0.4;
+  // ─── Vignette (match reference: 1 - dot(uv,uv)*0.3) ────────────────
+  col *= 1.0 - dot(uv/vec2(aspect,1.0), uv/vec2(aspect,1.0)) * 0.3;
 
-  col = pow(clamp(col, 0.0, 1.0), vec3(0.92));
+  col = pow(col / (1.0 + col), vec3(0.95));
   fragColor = vec4(col, 1.0);
 }
 `;

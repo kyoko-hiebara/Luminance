@@ -1,0 +1,1041 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Audio Reactive VJ</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600&family=Outfit:wght@200;400;600&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #000;
+    overflow: hidden;
+    font-family: 'Outfit', sans-serif;
+    color: #e0e0e0;
+    cursor: crosshair;
+  }
+
+  canvas#gl {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100vw; height: 100vh;
+    display: block;
+  }
+
+  /* ── Control Panel ── */
+  #controls {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: linear-gradient(transparent, rgba(0,0,0,0.85) 30%);
+    padding: 50px 28px 22px;
+    z-index: 10;
+    transition: opacity 0.4s, transform 0.4s;
+  }
+  #controls.hidden {
+    opacity: 0;
+    transform: translateY(20px);
+    pointer-events: none;
+  }
+
+  .controls-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+
+  /* File input */
+  .file-btn {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 8px;
+    color: #ccc;
+    font: 400 13px 'Outfit', sans-serif;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.2s;
+    flex-shrink: 0;
+  }
+  .file-btn:hover { background: rgba(255,255,255,0.14); color: #fff; }
+  .file-btn input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+  .file-btn svg { width: 16px; height: 16px; }
+
+  /* Play / Pause */
+  .play-btn {
+    width: 36px; height: 36px;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    flex-shrink: 0;
+    color: #ccc;
+  }
+  .play-btn:hover { background: rgba(255,255,255,0.14); color: #fff; }
+  .play-btn svg { width: 16px; height: 16px; }
+
+  /* Seek bar */
+  .seek-container {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+  }
+  .time-label {
+    font: 300 11px 'JetBrains Mono', monospace;
+    color: rgba(255,255,255,0.45);
+    flex-shrink: 0;
+    min-width: 36px;
+    text-align: center;
+  }
+  input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    flex: 1;
+    height: 4px;
+    background: rgba(255,255,255,0.12);
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    background: #fff;
+    cursor: pointer;
+    box-shadow: 0 0 8px rgba(255,255,255,0.3);
+  }
+
+  /* Mode buttons */
+  .mode-group {
+    display: flex;
+    gap: 2px;
+    background: rgba(255,255,255,0.06);
+    border-radius: 8px;
+    padding: 2px;
+    flex-shrink: 0;
+  }
+  .mode-btn {
+    padding: 7px 14px;
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    color: rgba(255,255,255,0.45);
+    font: 400 12px 'Outfit', sans-serif;
+    cursor: pointer;
+    transition: all 0.25s;
+    white-space: nowrap;
+  }
+  .mode-btn:hover { color: rgba(255,255,255,0.7); }
+  .mode-btn.active {
+    background: rgba(255,255,255,0.12);
+    color: #fff;
+    box-shadow: 0 0 12px rgba(255,255,255,0.06);
+  }
+
+  /* Fullscreen btn */
+  .fs-btn {
+    width: 36px; height: 36px;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    flex-shrink: 0;
+    color: #ccc;
+  }
+  .fs-btn:hover { background: rgba(255,255,255,0.14); color: #fff; }
+  .fs-btn svg { width: 16px; height: 16px; }
+
+  /* Spectrum overlay */
+  canvas#spectrum {
+    position: fixed;
+    bottom: 80px; left: 50%;
+    transform: translateX(-50%);
+    width: 300px; height: 50px;
+    z-index: 10;
+    opacity: 0.5;
+    pointer-events: none;
+    transition: opacity 0.3s;
+  }
+  canvas#spectrum.hidden { opacity: 0; }
+
+  /* Track name */
+  .track-name {
+    position: fixed;
+    top: 20px; left: 24px;
+    font: 200 14px 'Outfit', sans-serif;
+    color: rgba(255,255,255,0.35);
+    z-index: 10;
+    letter-spacing: 0.5px;
+    pointer-events: none;
+    transition: opacity 0.3s;
+  }
+
+  /* Param display */
+  .params {
+    position: fixed;
+    top: 20px; right: 24px;
+    font: 300 10px 'JetBrains Mono', monospace;
+    color: rgba(255,255,255,0.3);
+    z-index: 10;
+    text-align: right;
+    line-height: 1.8;
+    pointer-events: none;
+    transition: opacity 0.3s;
+  }
+
+  .hint {
+    position: fixed;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    z-index: 5;
+    pointer-events: none;
+    transition: opacity 0.5s;
+  }
+  .hint.hidden { opacity: 0; }
+  .hint h2 {
+    font: 200 28px 'Outfit', sans-serif;
+    color: rgba(255,255,255,0.25);
+    margin-bottom: 8px;
+  }
+  .hint p {
+    font: 300 13px 'Outfit', sans-serif;
+    color: rgba(255,255,255,0.15);
+  }
+</style>
+</head>
+<body>
+
+<canvas id="gl"></canvas>
+<canvas id="spectrum"></canvas>
+
+<div class="hint" id="hint">
+  <h2>Drop audio or click Load</h2>
+  <p>.mp3 / .wav / .ogg / .flac</p>
+</div>
+
+<div class="track-name" id="trackName"></div>
+
+<div class="params" id="params"></div>
+
+<div id="controls">
+  <div class="controls-row">
+    <label class="file-btn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      Load
+      <input type="file" id="fileInput" accept="audio/*">
+    </label>
+
+    <div class="play-btn" id="playBtn">
+      <svg id="playIcon" viewBox="0 0 24 24" fill="currentColor"><polygon points="6,4 20,12 6,20"/></svg>
+      <svg id="pauseIcon" viewBox="0 0 24 24" fill="currentColor" style="display:none"><rect x="5" y="4" width="4" height="16"/><rect x="15" y="4" width="4" height="16"/></svg>
+    </div>
+
+    <div class="seek-container">
+      <span class="time-label" id="timeCur">0:00</span>
+      <input type="range" id="seekBar" min="0" max="1" step="0.001" value="0">
+      <span class="time-label" id="timeDur">0:00</span>
+    </div>
+
+    <div class="mode-group">
+      <button class="mode-btn active" data-mode="0">Tunnel</button>
+      <button class="mode-btn" data-mode="1">Flow</button>
+      <button class="mode-btn" data-mode="2">Kaleido</button>
+    </div>
+
+    <div class="fs-btn" id="fsBtn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+    </div>
+  </div>
+</div>
+
+<script>
+// ╔══════════════════════════════════════════════╗
+// ║          GLSL SHADER COMMON CODE             ║
+// ╚══════════════════════════════════════════════╝
+const COMMON_GLSL = `#version 300 es
+precision highp float;
+
+uniform vec2 u_resolution;
+uniform float u_time;
+uniform float u_bass;
+uniform float u_mid;
+uniform float u_high;
+uniform float u_rms;
+uniform float u_centroid;
+uniform float u_beat;
+uniform sampler2D u_spectrum;
+
+out vec4 fragColor;
+
+#define PI 3.14159265359
+#define TAU 6.28318530718
+
+// ── Noise ──
+float hash(vec2 p) {
+    vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+    p3 += dot(p3, p3.yzx + 33.33);
+    return fract((p3.x + p3.y) * p3.z);
+}
+
+float noise(vec2 p) {
+    vec2 i = floor(p);
+    vec2 f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    return mix(
+        mix(hash(i), hash(i + vec2(1,0)), f.x),
+        mix(hash(i + vec2(0,1)), hash(i + vec2(1,1)), f.x),
+        f.y
+    );
+}
+
+float fbm(vec2 p) {
+    float v = 0.0, a = 0.5;
+    mat2 rot = mat2(0.8, 0.6, -0.6, 0.8);
+    for (int i = 0; i < 5; i++) {
+        v += a * noise(p);
+        p = rot * p * 2.0;
+        a *= 0.5;
+    }
+    return v;
+}
+
+// ── Color palette (Inigo Quilez) ──
+vec3 palette(float t, vec3 a, vec3 b, vec3 c, vec3 d) {
+    return a + b * cos(TAU * (c * t + d));
+}
+
+vec3 defaultPalette(float t) {
+    return palette(t,
+        vec3(0.5, 0.5, 0.5),
+        vec3(0.5, 0.5, 0.5),
+        vec3(1.0, 1.0, 1.0),
+        vec3(0.0, 0.33, 0.67)
+    );
+}
+
+vec3 warmPalette(float t) {
+    return palette(t,
+        vec3(0.5, 0.5, 0.5),
+        vec3(0.5, 0.5, 0.5),
+        vec3(1.0, 0.7, 0.4),
+        vec3(0.0, 0.15, 0.20)
+    );
+}
+
+vec3 neonPalette(float t) {
+    return palette(t,
+        vec3(0.5, 0.5, 0.5),
+        vec3(0.5, 0.5, 0.5),
+        vec3(2.0, 1.0, 0.0),
+        vec3(0.5, 0.2, 0.25)
+    );
+}
+
+mat2 rot2(float a) { float c=cos(a),s=sin(a); return mat2(c,-s,s,c); }
+`;
+
+// ╔══════════════════════════════════════════════╗
+// ║            TUNNEL SHADER                     ║
+// ╚══════════════════════════════════════════════╝
+const TUNNEL_FRAG = COMMON_GLSL + `
+void main() {
+    vec2 uv = (gl_FragCoord.xy - 0.5 * u_resolution) / u_resolution.y;
+
+    // Polar tunnel mapping
+    float angle = atan(uv.y, uv.x);
+    float radius = length(uv);
+
+    // Avoid division artifacts at center
+    float depth = 0.5 / (radius + 0.001);
+
+    // Tunnel UV
+    float tu = angle / PI;
+    float tv = depth;
+
+    // Scroll speed driven by bass
+    float speed = 0.4 + u_bass * 1.8 + u_rms * 0.6;
+    tv += u_time * speed;
+
+    // Wall displacement with fbm
+    float warp = fbm(vec2(tu * 4.0 + u_time * 0.1, tv * 0.8)) * 0.6;
+    warp += fbm(vec2(tu * 8.0 - u_time * 0.05, tv * 1.5 + u_mid * 2.0)) * 0.3;
+
+    // Glow rings
+    float rings = sin(tv * 12.0 + warp * 8.0) * 0.5 + 0.5;
+    rings = pow(rings, 3.0 + u_high * 8.0);
+
+    // Fetch spectrum for extra detail
+    float spec = texture(u_spectrum, vec2(fract(tu * 0.5 + 0.5), 0.5)).r;
+
+    // Color
+    float colorIndex = warp + u_centroid * 0.8 + u_time * 0.05;
+    vec3 col = defaultPalette(colorIndex);
+
+    // Modulate by rings and depth
+    col *= 0.3 + rings * 0.7;
+    col += defaultPalette(colorIndex + 0.3) * spec * 0.3 * u_mid;
+
+    // Depth fog
+    float fog = smoothstep(0.0, 0.25, radius);
+    col *= fog;
+
+    // Vignette
+    float vig = 1.0 - dot(uv, uv) * 0.6;
+    col *= vig;
+
+    // Beat flash
+    col += vec3(0.15, 0.1, 0.2) * u_beat * 3.0;
+
+    // Edge glow
+    float edgeGlow = exp(-radius * 4.0) * u_bass * 0.6;
+    col += neonPalette(u_time * 0.1 + angle) * edgeGlow;
+
+    // Tone map
+    col = col / (1.0 + col);
+
+    fragColor = vec4(col, 1.0);
+}
+`;
+
+// ╔══════════════════════════════════════════════╗
+// ║          FLOW FIELD SHADER                   ║
+// ╚══════════════════════════════════════════════╝
+const FLOW_FRAG = COMMON_GLSL + `
+void main() {
+    vec2 uv = (gl_FragCoord.xy - 0.5 * u_resolution) / u_resolution.y;
+
+    float t = u_time * 0.25;
+
+    // Domain warping - layered
+    vec2 p = uv * 2.5;
+
+    // First warp layer - slow, large scale
+    vec2 q = vec2(
+        fbm(p + vec2(0.0, 0.0) + t * 0.3),
+        fbm(p + vec2(5.2, 1.3) + t * 0.2)
+    );
+
+    // Second warp layer - mid driven
+    vec2 r = vec2(
+        fbm(p + 4.0 * q + vec2(1.7, 9.2) + t * 0.15 + u_mid * 1.5),
+        fbm(p + 4.0 * q + vec2(8.3, 2.8) + t * 0.12 + u_bass * 1.2)
+    );
+
+    // Final fbm
+    float f = fbm(p + 4.0 * r + u_high * 0.5);
+
+    // Color mixing
+    vec3 col = mix(
+        vec3(0.05, 0.02, 0.1),
+        warmPalette(f + u_centroid * 0.5),
+        clamp(f * f * 2.0, 0.0, 1.0)
+    );
+
+    col = mix(col,
+        neonPalette(length(q) + t * 0.1),
+        clamp(length(q) * 0.4, 0.0, 1.0)
+    );
+
+    col = mix(col,
+        defaultPalette(length(r) + u_centroid),
+        clamp(length(r) * r.x * 0.8, 0.0, 1.0)
+    );
+
+    // Spectrum texture influence
+    float specX = fract(atan(uv.y, uv.x) / TAU + 0.5);
+    float spec = texture(u_spectrum, vec2(specX, 0.5)).r;
+    col += warmPalette(spec + f) * spec * 0.2 * u_rms;
+
+    // Bass pulse - radial
+    float pulse = exp(-length(uv) * (2.0 - u_bass * 1.5)) * u_bass * 0.4;
+    col += neonPalette(f + t) * pulse;
+
+    // Beat flash
+    col *= 1.0 + u_beat * 0.8;
+
+    // Vignette
+    col *= 1.0 - dot(uv, uv) * 0.3;
+
+    // Tone map
+    col = pow(col / (1.0 + col), vec3(0.95));
+
+    fragColor = vec4(col, 1.0);
+}
+`;
+
+// ╔══════════════════════════════════════════════╗
+// ║        KALEIDOSCOPE SHADER                   ║
+// ╚══════════════════════════════════════════════╝
+const KALEIDO_FRAG = COMMON_GLSL + `
+float sdSegment(vec2 p, vec2 a, vec2 b) {
+    vec2 pa = p - a, ba = b - a;
+    float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
+    return length(pa - ba * h);
+}
+
+float sdCircle(vec2 p, float r) { return length(p) - r; }
+
+float sdPolygon(vec2 p, float r, int n) {
+    float an = PI / float(n);
+    float a = atan(p.y, p.x);
+    a = mod(a + an, 2.0 * an) - an;
+    return length(p) * cos(a) - r;
+}
+
+void main() {
+    vec2 uv = (gl_FragCoord.xy - 0.5 * u_resolution) / u_resolution.y;
+
+    float t = u_time;
+
+    // Kaleidoscope fold
+    float angle = atan(uv.y, uv.x);
+    float radius = length(uv);
+
+    // Symmetry count driven by beat (switches between 4-12)
+    float symBase = 6.0 + sin(t * 0.15) * 2.0 + u_bass * 3.0;
+    float sym = floor(symBase);
+    float segAngle = TAU / sym;
+
+    angle = mod(angle + t * 0.2 * (1.0 + u_mid * 0.5), segAngle);
+    angle = abs(angle - segAngle * 0.5);
+
+    vec2 p = vec2(cos(angle), sin(angle)) * radius;
+
+    // Rotate inner space
+    p *= rot2(t * 0.3 + u_centroid * 2.0);
+
+    // Scale pulsation
+    p *= 1.0 + u_bass * 0.3;
+
+    // SDF composition
+    float d = 1e9;
+
+    // Concentric polygon rings
+    for (int i = 0; i < 5; i++) {
+        float fi = float(i);
+        float r = 0.12 + fi * 0.15 + sin(t * 0.5 + fi) * 0.03;
+        r += u_rms * 0.05;
+        int sides = int(3.0 + mod(fi + floor(t * 0.3), 5.0));
+        vec2 pp = p * rot2(fi * 0.5 + t * 0.1 * (1.0 + u_high));
+        float ring = abs(sdPolygon(pp, r, sides)) - 0.006 - u_mid * 0.004;
+        d = min(d, ring);
+    }
+
+    // Radiating lines
+    for (int i = 0; i < 3; i++) {
+        float fi = float(i);
+        float la = fi * PI / 3.0 + t * 0.4;
+        vec2 dir = vec2(cos(la), sin(la));
+        float seg = sdSegment(p, dir * 0.05, dir * (0.6 + u_high * 0.3));
+        seg -= 0.003;
+        d = min(d, seg);
+    }
+
+    // Central circles
+    float c1 = abs(sdCircle(p, 0.08 + u_bass * 0.06)) - 0.004;
+    float c2 = abs(sdCircle(p, 0.03 + u_rms * 0.03)) - 0.003;
+    d = min(d, min(c1, c2));
+
+    // Spectrum ring
+    float specAngle = atan(p.y, p.x);
+    float specU = fract(specAngle / TAU + 0.5);
+    float spec = texture(u_spectrum, vec2(specU, 0.5)).r;
+    float specRing = abs(sdCircle(p, 0.35 + spec * 0.15)) - 0.005;
+    d = min(d, specRing);
+
+    // Color
+    float glow = 0.004 / (abs(d) + 0.004);
+    glow = pow(glow, 1.2);
+
+    float colorIdx = radius * 2.0 + angle + t * 0.1 + u_centroid;
+    vec3 col = neonPalette(colorIdx) * glow;
+
+    // Add subtle fill
+    float fill = smoothstep(0.01, 0.0, d);
+    col += defaultPalette(colorIdx + 0.5) * fill * 0.15;
+
+    // Background glow
+    float bgGlow = exp(-radius * 3.0) * u_rms * 0.2;
+    col += warmPalette(t * 0.05) * bgGlow;
+
+    // Beat flash
+    col += vec3(0.08) * u_beat * 2.0;
+
+    // Vignette
+    col *= 1.0 - dot(uv * 0.8, uv * 0.8);
+
+    // Tone map
+    col = col / (1.0 + col);
+
+    fragColor = vec4(col, 1.0);
+}
+`;
+
+// ╔══════════════════════════════════════════════╗
+// ║               VERTEX SHADER                  ║
+// ╚══════════════════════════════════════════════╝
+const VERT = `#version 300 es
+in vec2 a_position;
+void main() { gl_Position = vec4(a_position, 0.0, 1.0); }
+`;
+
+// ╔══════════════════════════════════════════════╗
+// ║             APPLICATION STATE                ║
+// ╚══════════════════════════════════════════════╝
+const SHADERS = [TUNNEL_FRAG, FLOW_FRAG, KALEIDO_FRAG];
+const MODE_NAMES = ['Tunnel', 'Flow', 'Kaleido'];
+
+let gl, canvas;
+let programs = [];
+let currentMode = 0;
+let quadVAO;
+let spectrumTex;
+
+// Audio
+let audioCtx, analyser, sourceNode, audioBuffer;
+let isPlaying = false;
+let startTime = 0, pausedAt = 0;
+let fftData, waveData;
+const FFT_SIZE = 1024;
+
+// Smoothed params
+let params = { bass: 0, mid: 0, high: 0, rms: 0, centroid: 0, beat: 0 };
+let smoothParams = { bass: 0, mid: 0, high: 0, rms: 0, centroid: 0, beat: 0 };
+let energyHistory = [];
+const SMOOTH = 0.12;
+
+// UI
+let controlsVisible = true;
+let hideTimer = null;
+
+// ╔══════════════════════════════════════════════╗
+// ║             WEBGL SETUP                      ║
+// ╚══════════════════════════════════════════════╝
+function initGL() {
+    canvas = document.getElementById('gl');
+    gl = canvas.getContext('webgl2', { antialias: false, alpha: false });
+    if (!gl) { alert('WebGL2 required'); return; }
+
+    resize();
+
+    // Compile all shader programs
+    for (const frag of SHADERS) {
+        const prog = createProgram(VERT, frag);
+        if (prog) programs.push(prog);
+    }
+
+    // Fullscreen quad
+    const verts = new Float32Array([-1,-1, 1,-1, -1,1, 1,1]);
+    const buf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+    gl.bufferData(gl.ARRAY_BUFFER, verts, gl.STATIC_DRAW);
+
+    quadVAO = gl.createVertexArray();
+    gl.bindVertexArray(quadVAO);
+    gl.enableVertexAttribArray(0);
+    gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+
+    // Spectrum texture
+    spectrumTex = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, spectrumTex);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    const initData = new Uint8Array(FFT_SIZE / 2);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.R8, FFT_SIZE / 2, 1, 0, gl.RED, gl.UNSIGNED_BYTE, initData);
+}
+
+function createProgram(vertSrc, fragSrc) {
+    const vs = compileShader(gl.VERTEX_SHADER, vertSrc);
+    const fs = compileShader(gl.FRAGMENT_SHADER, fragSrc);
+    if (!vs || !fs) return null;
+
+    const prog = gl.createProgram();
+    gl.attachShader(prog, vs);
+    gl.attachShader(prog, fs);
+    gl.bindAttribLocation(prog, 0, 'a_position');
+    gl.linkProgram(prog);
+
+    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+        console.error('Link error:', gl.getProgramInfoLog(prog));
+        return null;
+    }
+
+    // Cache uniform locations
+    prog.uniforms = {};
+    const names = ['u_resolution','u_time','u_bass','u_mid','u_high','u_rms','u_centroid','u_beat','u_spectrum'];
+    for (const n of names) prog.uniforms[n] = gl.getUniformLocation(prog, n);
+
+    return prog;
+}
+
+function compileShader(type, src) {
+    const s = gl.createShader(type);
+    gl.shaderSource(s, src);
+    gl.compileShader(s);
+    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+        console.error('Shader error:', gl.getShaderInfoLog(s));
+        return null;
+    }
+    return s;
+}
+
+function resize() {
+    const dpr = Math.min(window.devicePixelRatio, 2);
+    canvas.width = window.innerWidth * dpr;
+    canvas.height = window.innerHeight * dpr;
+    gl.viewport(0, 0, canvas.width, canvas.height);
+}
+
+// ╔══════════════════════════════════════════════╗
+// ║             AUDIO ENGINE                     ║
+// ╚══════════════════════════════════════════════╝
+function initAudio() {
+    if (audioCtx) return;
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    analyser = audioCtx.createAnalyser();
+    analyser.fftSize = FFT_SIZE;
+    analyser.smoothingTimeConstant = 0.8;
+    analyser.connect(audioCtx.destination);
+
+    fftData = new Uint8Array(analyser.frequencyBinCount);
+    waveData = new Uint8Array(analyser.fftSize);
+}
+
+async function loadAudioFile(file) {
+    initAudio();
+
+    if (sourceNode) { sourceNode.stop(); sourceNode.disconnect(); }
+    isPlaying = false;
+    pausedAt = 0;
+
+    const arrayBuf = await file.arrayBuffer();
+    audioBuffer = await audioCtx.decodeAudioData(arrayBuf);
+
+    document.getElementById('trackName').textContent = file.name.replace(/\.[^.]+$/, '');
+    document.getElementById('timeDur').textContent = fmtTime(audioBuffer.duration);
+    document.getElementById('seekBar').max = audioBuffer.duration;
+
+    document.getElementById('hint').classList.add('hidden');
+
+    playAudio(0);
+}
+
+function playAudio(offset) {
+    if (sourceNode) { try { sourceNode.stop(); } catch(e){} sourceNode.disconnect(); }
+
+    sourceNode = audioCtx.createBufferSource();
+    sourceNode.buffer = audioBuffer;
+    sourceNode.connect(analyser);
+    sourceNode.start(0, offset);
+
+    startTime = audioCtx.currentTime - offset;
+    isPlaying = true;
+
+    sourceNode.onended = () => {
+        if (isPlaying && getCurrentTime() >= audioBuffer.duration - 0.1) {
+            isPlaying = false;
+            pausedAt = 0;
+            updatePlayBtn();
+        }
+    };
+    updatePlayBtn();
+}
+
+function togglePlay() {
+    if (!audioBuffer) return;
+    if (isPlaying) {
+        pausedAt = getCurrentTime();
+        sourceNode.stop();
+        isPlaying = false;
+    } else {
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        playAudio(pausedAt);
+    }
+    updatePlayBtn();
+}
+
+function getCurrentTime() {
+    if (!isPlaying) return pausedAt;
+    return audioCtx.currentTime - startTime;
+}
+
+function seekTo(time) {
+    if (!audioBuffer) return;
+    pausedAt = time;
+    if (isPlaying) playAudio(time);
+}
+
+// ╔══════════════════════════════════════════════╗
+// ║         AUDIO ANALYSIS                       ║
+// ╚══════════════════════════════════════════════╝
+function analyzeAudio() {
+    if (!analyser || !isPlaying) {
+        // Decay all params when not playing
+        for (const k in params) params[k] *= 0.95;
+        return;
+    }
+
+    analyser.getByteFrequencyData(fftData);
+    analyser.getByteTimeDomainData(waveData);
+
+    const bins = fftData.length;
+    const nyquist = audioCtx.sampleRate / 2;
+
+    // Band energies (normalized 0-1)
+    let bassSum = 0, midSum = 0, highSum = 0;
+    const bassEnd = Math.floor(250 / nyquist * bins);    // ~250 Hz
+    const midEnd = Math.floor(4000 / nyquist * bins);     // ~4 kHz
+
+    for (let i = 0; i < bins; i++) {
+        const v = fftData[i] / 255;
+        if (i < bassEnd) bassSum += v;
+        else if (i < midEnd) midSum += v;
+        else highSum += v;
+    }
+
+    params.bass = bassSum / bassEnd;
+    params.mid = midSum / (midEnd - bassEnd);
+    params.high = highSum / (bins - midEnd);
+
+    // RMS from waveform
+    let rmsSum = 0;
+    for (let i = 0; i < waveData.length; i++) {
+        const v = (waveData[i] - 128) / 128;
+        rmsSum += v * v;
+    }
+    params.rms = Math.sqrt(rmsSum / waveData.length);
+
+    // Spectral centroid
+    let weightedSum = 0, totalWeight = 0;
+    for (let i = 0; i < bins; i++) {
+        const freq = i / bins;
+        const amp = fftData[i] / 255;
+        weightedSum += freq * amp;
+        totalWeight += amp;
+    }
+    params.centroid = totalWeight > 0 ? weightedSum / totalWeight : 0;
+
+    // Beat detection (energy-based onset)
+    energyHistory.push(params.rms);
+    if (energyHistory.length > 60) energyHistory.shift();
+    const avgEnergy = energyHistory.reduce((a, b) => a + b) / energyHistory.length;
+    if (params.rms > avgEnergy * 1.4 && params.rms > 0.05) {
+        params.beat = 1.0;
+    } else {
+        params.beat *= 0.88;
+    }
+}
+
+function smoothAudioParams() {
+    for (const k in smoothParams) {
+        smoothParams[k] += (params[k] - smoothParams[k]) * SMOOTH;
+    }
+}
+
+// ╔══════════════════════════════════════════════╗
+// ║            SPECTRUM MINI-DISPLAY             ║
+// ╚══════════════════════════════════════════════╝
+const specCanvas = document.getElementById('spectrum');
+const specCtx = specCanvas.getContext('2d');
+specCanvas.width = 300;
+specCanvas.height = 50;
+
+function drawSpectrum() {
+    if (!fftData) return;
+    specCtx.clearRect(0, 0, 300, 50);
+
+    const barCount = 64;
+    const binStep = Math.floor(fftData.length / barCount);
+    const barW = 300 / barCount;
+
+    for (let i = 0; i < barCount; i++) {
+        const val = fftData[i * binStep] / 255;
+        const h = val * 46;
+        const hue = 220 + i * 2.2;
+        specCtx.fillStyle = `hsla(${hue}, 70%, 65%, 0.7)`;
+        specCtx.fillRect(i * barW, 50 - h, barW - 1, h);
+    }
+}
+
+// ╔══════════════════════════════════════════════╗
+// ║            RENDER LOOP                       ║
+// ╚══════════════════════════════════════════════╝
+let startGLTime = performance.now() / 1000;
+
+function render() {
+    requestAnimationFrame(render);
+
+    analyzeAudio();
+    smoothAudioParams();
+
+    const prog = programs[currentMode];
+    if (!prog) return;
+
+    gl.useProgram(prog);
+
+    const time = performance.now() / 1000 - startGLTime;
+    const u = prog.uniforms;
+
+    gl.uniform2f(u.u_resolution, canvas.width, canvas.height);
+    gl.uniform1f(u.u_time, time);
+    gl.uniform1f(u.u_bass, smoothParams.bass);
+    gl.uniform1f(u.u_mid, smoothParams.mid);
+    gl.uniform1f(u.u_high, smoothParams.high);
+    gl.uniform1f(u.u_rms, smoothParams.rms);
+    gl.uniform1f(u.u_centroid, smoothParams.centroid);
+    gl.uniform1f(u.u_beat, smoothParams.beat);
+
+    // Update spectrum texture
+    if (fftData) {
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, spectrumTex);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.R8, fftData.length, 1, 0, gl.RED, gl.UNSIGNED_BYTE, fftData);
+        gl.uniform1i(u.u_spectrum, 0);
+    }
+
+    gl.bindVertexArray(quadVAO);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+    // UI updates
+    drawSpectrum();
+    updateTimeDisplay();
+    updateParamDisplay();
+}
+
+// ╔══════════════════════════════════════════════╗
+// ║              UI HELPERS                      ║
+// ╚══════════════════════════════════════════════╝
+function fmtTime(s) {
+    const m = Math.floor(s / 60);
+    const sec = Math.floor(s % 60);
+    return `${m}:${sec.toString().padStart(2, '0')}`;
+}
+
+function updatePlayBtn() {
+    document.getElementById('playIcon').style.display = isPlaying ? 'none' : 'block';
+    document.getElementById('pauseIcon').style.display = isPlaying ? 'block' : 'none';
+}
+
+function updateTimeDisplay() {
+    if (!audioBuffer) return;
+    const cur = Math.min(getCurrentTime(), audioBuffer.duration);
+    document.getElementById('timeCur').textContent = fmtTime(cur);
+    if (!seekDragging) {
+        document.getElementById('seekBar').value = cur;
+    }
+}
+
+function updateParamDisplay() {
+    const p = smoothParams;
+    document.getElementById('params').innerHTML =
+        `BASS  ${p.bass.toFixed(3)}<br>` +
+        `MID   ${p.mid.toFixed(3)}<br>` +
+        `HIGH  ${p.high.toFixed(3)}<br>` +
+        `RMS   ${p.rms.toFixed(3)}<br>` +
+        `CENT  ${p.centroid.toFixed(3)}<br>` +
+        `BEAT  ${p.beat.toFixed(3)}<br>` +
+        `<br>${MODE_NAMES[currentMode].toUpperCase()}`;
+}
+
+// ╔══════════════════════════════════════════════╗
+// ║            EVENT HANDLERS                    ║
+// ╚══════════════════════════════════════════════╝
+let seekDragging = false;
+
+document.getElementById('fileInput').addEventListener('change', (e) => {
+    if (e.target.files[0]) loadAudioFile(e.target.files[0]);
+});
+
+document.getElementById('playBtn').addEventListener('click', togglePlay);
+
+const seekBar = document.getElementById('seekBar');
+seekBar.addEventListener('mousedown', () => seekDragging = true);
+seekBar.addEventListener('touchstart', () => seekDragging = true);
+seekBar.addEventListener('input', () => { if (seekDragging) seekTo(parseFloat(seekBar.value)); });
+seekBar.addEventListener('mouseup', () => seekDragging = false);
+seekBar.addEventListener('touchend', () => seekDragging = false);
+seekBar.addEventListener('change', () => { seekDragging = false; seekTo(parseFloat(seekBar.value)); });
+
+document.querySelectorAll('.mode-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.querySelector('.mode-btn.active').classList.remove('active');
+        btn.classList.add('active');
+        currentMode = parseInt(btn.dataset.mode);
+    });
+});
+
+document.getElementById('fsBtn').addEventListener('click', () => {
+    if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen();
+    } else {
+        document.exitFullscreen();
+    }
+});
+
+window.addEventListener('resize', () => { if (gl) resize(); });
+
+// Keyboard
+document.addEventListener('keydown', (e) => {
+    if (e.code === 'Space') { e.preventDefault(); togglePlay(); }
+    if (e.code === 'KeyH') {
+        controlsVisible = !controlsVisible;
+        document.getElementById('controls').classList.toggle('hidden');
+        document.getElementById('spectrum').classList.toggle('hidden');
+        document.getElementById('params').style.opacity = controlsVisible ? '1' : '0';
+        document.getElementById('trackName').style.opacity = controlsVisible ? '1' : '0';
+    }
+    if (e.key >= '1' && e.key <= '3') {
+        const idx = parseInt(e.key) - 1;
+        document.querySelector('.mode-btn.active').classList.remove('active');
+        document.querySelectorAll('.mode-btn')[idx].classList.add('active');
+        currentMode = idx;
+    }
+    if (e.code === 'KeyF') {
+        if (!document.fullscreenElement) document.documentElement.requestFullscreen();
+        else document.exitFullscreen();
+    }
+});
+
+// Drag and drop
+document.body.addEventListener('dragover', (e) => { e.preventDefault(); });
+document.body.addEventListener('drop', (e) => {
+    e.preventDefault();
+    const file = e.dataTransfer.files[0];
+    if (file && file.type.startsWith('audio/')) loadAudioFile(file);
+});
+
+// Auto-hide controls
+document.addEventListener('mousemove', () => {
+    if (!controlsVisible) return;
+    document.getElementById('controls').classList.remove('hidden');
+    clearTimeout(hideTimer);
+    hideTimer = setTimeout(() => {
+        if (isPlaying) document.getElementById('controls').classList.add('hidden');
+    }, 4000);
+});
+
+// ╔══════════════════════════════════════════════╗
+// ║                 INIT                         ║
+// ╚══════════════════════════════════════════════╝
+initGL();
+render();
+</script>
+</body>
+</html>
