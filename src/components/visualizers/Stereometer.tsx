@@ -180,8 +180,9 @@ export function Stereometer({ width, height }: Props) {
       const levelH = rmsN * barFullH;
       const levelY = barBot - levelH;
 
-      // Rainbow glow: invisible fill, only shadow visible
+      // Rainbow glow: draw fill off-screen, shadow lands on-screen
       ctx.save();
+      const offX = 5000; // push fill far off-screen
       const glowSteps = 8;
       const stepH = levelH / glowSteps;
       for (let g = 0; g < glowSteps; g++) {
@@ -190,13 +191,14 @@ export function Stereometer({ width, height }: Props) {
         const sy = levelY + levelH - (g + 1) * stepH;
         ctx.shadowColor = `hsl(${hue},90%,55%)`;
         ctx.shadowBlur = 25 + rmsN * 40;
-        ctx.fillStyle = "rgba(0,0,0,0)"; // invisible fill — only the shadow renders
+        ctx.shadowOffsetX = -offX; // shadow offset brings it back on-screen
+        ctx.fillStyle = `hsl(${hue},90%,55%)`;
         ctx.globalAlpha = 0.5 + rmsN * 0.5;
-        ctx.fillRect(x - 2, sy, sideBarW + 4, stepH + 1);
+        ctx.fillRect(x - 2 + offX, sy, sideBarW + 4, stepH + 1);
       }
       ctx.restore();
 
-      // Main bar fill — rainbow gradient (drawn ON TOP of the glow)
+      // Main bar fill — rainbow gradient (crisp, on top of glow)
       ctx.fillStyle = rainbowGrad;
       ctx.globalAlpha = 0.95;
       ctx.beginPath();
