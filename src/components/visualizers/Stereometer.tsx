@@ -183,17 +183,17 @@ export function Stereometer({ width, height }: Props) {
 
       // Rainbow glow: small dots with shadowBlur (same technique as Spectrum sparkles)
       const cx = x + sideBarW / 2;
-      const dots = 8;
+      const dots = 16;
       ctx.save();
       for (let g = 0; g < dots; g++) {
         const t = dots > 1 ? g / (dots - 1) : 0;
         const hue = t * 280;
         const dy = barBot - t * levelH;
         ctx.shadowColor = `hsl(${hue},90%,60%)`;
-        ctx.shadowBlur = 15 + rmsN * 25;
+        ctx.shadowBlur = 20 + rmsN * 35;
         ctx.fillStyle = `hsla(${hue},90%,60%,${0.4 + rmsN * 0.4})`;
         ctx.beginPath();
-        ctx.arc(cx, dy, 2 + rmsN * 1.5, 0, Math.PI * 2);
+        ctx.arc(cx, dy, 2.5 + rmsN * 2, 0, Math.PI * 2);
         ctx.fill();
       }
       ctx.restore();
