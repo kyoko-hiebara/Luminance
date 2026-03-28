@@ -52,10 +52,8 @@ export function Layout() {
         </Panel>
       </div>
 
-      <div className="min-h-0 min-w-0 overflow-hidden" style={{ gridArea: "vj" }}>
-        <Panel title="VJ">
-          {({ width, height }) => <VJVisualizer width={width} height={height} />}
-        </Panel>
+      <div className="min-h-0 min-w-0 overflow-hidden rounded-lg" style={{ gridArea: "vj" }}>
+        <VJVisualizer />
       </div>
 
       <div className="min-h-0 min-w-0 overflow-hidden" style={{ gridArea: "oscillo" }}>

@@ -1,11 +1,6 @@
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useState } from "react";
 import { useAudioData, type AudioData } from "@/hooks/useAudioData";
 import { useAnimationFrame } from "@/hooks/useAnimationFrame";
-
-interface Props {
-  width: number;
-  height: number;
-}
 
 // ─── Shader Sources ───────────────────────────────────────────────────────────
 
@@ -32,50 +27,46 @@ uniform float u_high;
 uniform float u_rms;
 uniform float u_beat;
 
+// ─── Math Helpers ─────────────────────────────────────────────────────────────
+
+mat2 rot2(float a) {
+  float s = sin(a), c = cos(a);
+  return mat2(c, -s, s, c);
+}
+
 // ─── Hash & Noise ─────────────────────────────────────────────────────────────
 
-// Simple 2D hash for value noise
 float hash(vec2 p) {
   vec3 p3 = fract(vec3(p.xyx) * 0.1031);
   p3 += dot(p3, p3.yzx + 33.33);
   return fract((p3.x + p3.y) * p3.z);
 }
 
-// Smooth value noise
 float noise(vec2 p) {
   vec2 i = floor(p);
   vec2 f = fract(p);
-  f = f * f * (3.0 - 2.0 * f); // smoothstep
-
+  f = f * f * (3.0 - 2.0 * f);
   float a = hash(i);
   float b = hash(i + vec2(1.0, 0.0));
   float c = hash(i + vec2(0.0, 1.0));
   float d = hash(i + vec2(1.0, 1.0));
-
   return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
 }
 
-// ─── FBM (Fractal Brownian Motion) ────────────────────────────────────────────
-
-float fbm(vec2 p, int octaves, float lacunarity, float gain) {
-  float sum = 0.0;
-  float amp = 0.5;
-  float freq = 1.0;
+float fbm(vec2 p, int oct) {
+  float sum = 0.0, amp = 0.5, freq = 1.0;
   for (int i = 0; i < 8; i++) {
-    if (i >= octaves) break;
+    if (i >= oct) break;
     sum += noise(p * freq) * amp;
-    freq *= lacunarity;
-    amp *= gain;
+    freq *= 2.0;
+    amp *= 0.5;
   }
   return sum;
 }
 
-// ─── Inigo Quilez Cosine Palette ──────────────────────────────────────────────
-// palette(t) = a + b * cos(2pi * (c*t + d))
-// Tuned for Cyan (#00F5D4) to Purple (#7B2FBE)
+// ─── Inigo Quilez Palette ─────────────────────────────────────────────────────
 
 vec3 palette(float t) {
-  // a = brightness center, b = amplitude, c = frequency, d = phase
   vec3 a = vec3(0.24, 0.58, 0.58);
   vec3 b = vec3(0.24, 0.48, 0.38);
   vec3 c = vec3(1.0, 1.0, 1.0);
@@ -83,112 +74,181 @@ vec3 palette(float t) {
   return a + b * cos(6.28318 * (c * t + d));
 }
 
-// ─── Domain Warp ──────────────────────────────────────────────────────────────
+// ─── SDF Primitives ───────────────────────────────────────────────────────────
 
-vec2 domainWarp(vec2 p, float warpAmt, float t) {
-  // First warp layer — large scale organic motion
-  float n1 = fbm(p + vec2(t * 0.15, t * 0.12), 4, 2.0, 0.5);
-  float n2 = fbm(p + vec2(t * -0.1 + 5.2, t * 0.08 + 1.3), 4, 2.0, 0.5);
-  vec2 warp1 = vec2(n1, n2) * warpAmt;
-
-  // Second warp layer — feeds back on itself for complexity
-  float n3 = fbm(p + warp1 + vec2(t * 0.07 + 1.7, t * -0.13 + 9.2), 3, 2.0, 0.5);
-  float n4 = fbm(p + warp1 + vec2(t * -0.06 + 8.3, t * 0.09 + 2.8), 3, 2.0, 0.5);
-  vec2 warp2 = vec2(n3, n4) * warpAmt * 0.5;
-
-  return warp1 + warp2;
+float sdCircle(vec2 p, float r) {
+  return length(p) - r;
 }
 
-// ─── Rotation ─────────────────────────────────────────────────────────────────
+float sdBox(vec2 p, vec2 b) {
+  vec2 d = abs(p) - b;
+  return length(max(d, 0.0)) + min(max(d.x, d.y), 0.0);
+}
 
-mat2 rot2(float a) {
-  float s = sin(a);
-  float c = cos(a);
-  return mat2(c, -s, s, c);
+float sdRoundBox(vec2 p, vec2 b, float r) {
+  return sdBox(p, b - r) - r;
+}
+
+float sdCross(vec2 p, float size, float thick) {
+  float d1 = sdBox(p, vec2(size, thick));
+  float d2 = sdBox(p, vec2(thick, size));
+  return min(d1, d2);
+}
+
+float sdArc(vec2 p, float r, float thick, float startAngle, float sweep) {
+  float a = atan(p.y, p.x) - startAngle;
+  a = mod(a + 3.14159, 6.28318) - 3.14159;
+  float inArc = step(a, sweep * 0.5) * step(-sweep * 0.5, a);
+  float ring = abs(length(p) - r) - thick;
+  return mix(length(p) - r, ring, inArc);
+}
+
+// Smooth min for metaball blending
+float smin(float a, float b, float k) {
+  float h = clamp(0.5 + 0.5 * (b - a) / k, 0.0, 1.0);
+  return mix(b, a, h) - k * h * (1.0 - h);
+}
+
+// ─── Domain Warp ──────────────────────────────────────────────────────────────
+
+vec2 domainWarp(vec2 p, float amt, float t) {
+  float n1 = fbm(p + vec2(t * 0.15, t * 0.12), 4);
+  float n2 = fbm(p + vec2(t * -0.1 + 5.2, t * 0.08 + 1.3), 4);
+  vec2 w1 = vec2(n1, n2) * amt;
+  float n3 = fbm(p + w1 + vec2(t * 0.07 + 1.7, t * -0.13 + 9.2), 3);
+  float n4 = fbm(p + w1 + vec2(t * -0.06 + 8.3, t * 0.09 + 2.8), 3);
+  return w1 + vec2(n3, n4) * amt * 0.5;
+}
+
+// ─── Shape Layer (SDF composited) ─────────────────────────────────────────────
+
+float shapeLayer(vec2 uv, float t, float bass, float mid, float high, float beat) {
+  float d = 1e5;
+
+  // Blob (metaball): 2-3 spheres merging, bass drives size
+  float blobR = 0.18 + bass * 0.12;
+  vec2 b1 = vec2(sin(t * 0.4) * 0.3, cos(t * 0.35) * 0.25);
+  vec2 b2 = vec2(cos(t * 0.5) * 0.25, sin(t * 0.45 + 1.0) * 0.3);
+  vec2 b3 = vec2(sin(t * 0.3 + 2.0) * 0.2, cos(t * 0.55 + 0.5) * 0.2);
+  float blob = smin(sdCircle(uv - b1, blobR), sdCircle(uv - b2, blobR * 0.85), 0.2);
+  blob = smin(blob, sdCircle(uv - b3, blobR * 0.7), 0.15);
+  d = min(d, blob);
+
+  // Rounded rectangle: mid drives corner radius, beat kicks rotation
+  vec2 rp = uv - vec2(-0.15, 0.1);
+  rp = rot2(t * 0.2 + beat * 1.5) * rp;
+  float cornerR = 0.02 + mid * 0.06;
+  float rbox = sdRoundBox(rp, vec2(0.15, 0.1), cornerR);
+  d = min(d, rbox);
+
+  // Cross marker: beat pulses scale
+  vec2 cp = uv - vec2(-0.55, 0.45);
+  cp = rot2(t * 0.15) * cp;
+  float crossSize = 0.06 + beat * 0.04;
+  float cross = sdCross(cp, crossSize, 0.012);
+  d = min(d, cross);
+
+  // Arc trails around blob center
+  vec2 arcCenter = (b1 + b2) * 0.5;
+  vec2 ap = uv - arcCenter;
+  float arcR = 0.35 + mid * 0.1;
+  float arcSweep = 1.5 + bass * 2.0;
+  float arc1 = sdArc(ap, arcR, 0.008, t * 0.5, arcSweep);
+  float arc2 = sdArc(ap, arcR * 0.75, 0.006, -t * 0.4 + 1.0, arcSweep * 0.8);
+  d = min(d, min(arc1, arc2));
+
+  // Floating circles (small, scattered)
+  for (int i = 0; i < 5; i++) {
+    float fi = float(i);
+    vec2 fp = vec2(
+      sin(fi * 2.1 + t * 0.2) * 0.7,
+      cos(fi * 1.7 + t * 0.15) * 0.5
+    );
+    float fr = 0.02 + 0.01 * sin(t * 0.8 + fi * 3.0);
+    d = min(d, sdCircle(uv - fp, fr));
+  }
+
+  // Dot grid (right area): high drives individual dot scale
+  vec2 gp = uv - vec2(0.45, -0.3);
+  gp = rot2(0.3) * gp;
+  vec2 gridId = floor(gp * 8.0);
+  vec2 gridUv = fract(gp * 8.0) - 0.5;
+  float dotR = 0.08 + high * 0.12 * (0.5 + 0.5 * sin(gridId.x * 1.3 + gridId.y * 2.1 + t));
+  float dots = sdCircle(gridUv, dotR);
+  d = min(d, dots);
+
+  return d;
 }
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 void main() {
-  vec2 uv = v_uv;
-  uv = uv * 2.0 - 1.0;
+  vec2 uv = v_uv * 2.0 - 1.0;
   uv.x *= u_resolution.x / u_resolution.y;
 
   float t = u_time;
-
-  // Audio parameters (clamped for safety)
   float bass = clamp(u_bass, 0.0, 1.0);
   float mid  = clamp(u_mid,  0.0, 1.0);
   float high = clamp(u_high, 0.0, 1.0);
   float rms  = clamp(u_rms,  0.0, 1.0);
   float beat = clamp(u_beat, 0.0, 1.0);
 
-  // ─── Beat zoom pulse ───────────────────────────────────────────────
-  float zoomPulse = 1.0 - beat * 0.08;
-  uv *= zoomPulse;
+  // Beat zoom pulse
+  uv *= 1.0 - beat * 0.06;
 
-  // ─── Rotation driven by mid frequencies ─────────────────────────────
-  float rotSpeed = 0.1 + mid * 0.25;
-  uv = rot2(t * rotSpeed) * uv;
+  // Slow rotation
+  uv = rot2(t * (0.08 + mid * 0.12)) * uv;
 
-  // ─── Scale / zoom ──────────────────────────────────────────────────
-  vec2 p = uv * (1.5 + bass * 0.5);
-
-  // ─── Domain warp amplitude driven by bass ───────────────────────────
-  float warpAmt = 1.8 + bass * 2.5 + beat * 1.2;
-
+  // ─── Background: domain warp flow ──────────────────────────────────
+  vec2 p = uv * (1.5 + bass * 0.4);
+  float warpAmt = 1.6 + bass * 2.0 + beat * 1.0;
   vec2 warp = domainWarp(p, warpAmt, t);
   vec2 warped = p + warp;
 
-  // ─── Detail octaves driven by high frequencies ──────────────────────
-  int octaves = 4 + int(high * 4.0); // 4-8 octaves
-  float lacunarity = 2.0 + high * 0.5;
-
-  // ─── Main pattern ──────────────────────────────────────────────────
-  float pattern = fbm(warped, octaves, lacunarity, 0.5);
-
-  // Second layer for more depth
-  float pattern2 = fbm(warped * 1.5 + vec2(3.7, 8.1) + t * 0.05, octaves, lacunarity, 0.5);
-
-  // Combine layers
+  int oct = 4 + int(high * 3.0);
+  float pattern = fbm(warped, oct);
+  float pattern2 = fbm(warped * 1.5 + vec2(3.7, 8.1) + t * 0.05, oct);
   float combined = pattern * 0.6 + pattern2 * 0.4;
+  combined = clamp(pow(combined, 0.8) * 1.3, 0.0, 1.0);
 
-  // ─── Edge sharpness from high frequencies ───────────────────────────
-  float sharp = 1.0 + high * 3.0;
-  combined = pow(combined, 0.8 / sharp) * sharp * 0.5;
-  combined = clamp(combined, 0.0, 1.0);
+  float palIdx = combined + length(warp) * 0.12 + t * 0.025;
+  vec3 bgCol = palette(palIdx);
+  vec3 bgCol2 = palette(palIdx + 0.33 + bass * 0.08);
+  bgCol = mix(bgCol, bgCol2, pattern2 * 0.4);
 
-  // ─── Palette coloring ──────────────────────────────────────────────
-  // Shift palette over time and with warp displacement
-  float palIdx = combined + length(warp) * 0.15 + t * 0.03;
-  vec3 col = palette(palIdx);
+  // ─── Shapes SDF layer ──────────────────────────────────────────────
+  float shapeDist = shapeLayer(uv, t, bass, mid, high, beat);
 
-  // Add a secondary color layer for more richness
-  vec3 col2 = palette(palIdx + 0.33 + bass * 0.1);
-  col = mix(col, col2, pattern2 * 0.5);
+  // Shape rendering: glow + edge
+  float shapeGlow = exp(-max(shapeDist, 0.0) * 8.0) * 0.6;
+  float shapeEdge = smoothstep(0.01, 0.0, abs(shapeDist)) * 0.8;
+  float shapeFill = smoothstep(0.005, -0.02, shapeDist) * 0.35;
 
-  // ─── Bass pulse (radial darken/brighten) ────────────────────────────
+  // Shape color: brighter palette
+  vec3 shapeCol = palette(palIdx + 0.5) * 1.4;
+  vec3 edgeCol = vec3(0.6, 0.95, 0.95); // cyan-white for edges
+
+  // Compose shape onto background
+  vec3 col = bgCol;
+  col += shapeCol * shapeFill;
+  col += shapeCol * shapeGlow;
+  col += edgeCol * shapeEdge;
+
+  // ─── Bass radial pulse ─────────────────────────────────────────────
   float dist = length(uv);
-  float pulse = 1.0 + bass * 0.4 * (1.0 - smoothstep(0.0, 2.0, dist));
-  col *= pulse;
+  col *= 1.0 + bass * 0.35 * (1.0 - smoothstep(0.0, 1.8, dist));
 
-  // ─── Overall brightness from RMS ────────────────────────────────────
-  float brightness = 0.55 + rms * 0.55;
-  col *= brightness;
+  // ─── Brightness from RMS ───────────────────────────────────────────
+  col *= 0.5 + rms * 0.6;
 
   // ─── Vignette ──────────────────────────────────────────────────────
-  float vig = 1.0 - smoothstep(0.5, 2.2, dist);
-  col *= vig;
+  col *= 1.0 - smoothstep(0.6, 2.0, dist);
 
   // ─── Beat flash ────────────────────────────────────────────────────
-  // White-cyan additive flash on beat
-  vec3 flashColor = vec3(0.4, 0.95, 0.9);
-  col += flashColor * beat * 0.45;
+  col += vec3(0.35, 0.9, 0.85) * beat * 0.4;
 
-  // ─── Final ─────────────────────────────────────────────────────────
-  // Subtle gamma / tone mapping
-  col = pow(col, vec3(0.92));
-  col = clamp(col, 0.0, 1.0);
+  // ─── Tone mapping & gamma ──────────────────────────────────────────
+  col = pow(clamp(col, 0.0, 1.0), vec3(0.9));
 
   fragColor = vec4(col, 1.0);
 }
@@ -196,11 +256,7 @@ void main() {
 
 // ─── WebGL Helpers ────────────────────────────────────────────────────────────
 
-function compileShader(
-  gl: WebGL2RenderingContext,
-  type: number,
-  source: string
-): WebGLShader | null {
+function compileShader(gl: WebGL2RenderingContext, type: number, source: string): WebGLShader | null {
   const shader = gl.createShader(type);
   if (!shader) return null;
   gl.shaderSource(shader, source);
@@ -213,37 +269,28 @@ function compileShader(
   return shader;
 }
 
-function createProgram(
-  gl: WebGL2RenderingContext,
-  vertSrc: string,
-  fragSrc: string
-): WebGLProgram | null {
+function createProgram(gl: WebGL2RenderingContext, vertSrc: string, fragSrc: string): WebGLProgram | null {
   const vert = compileShader(gl, gl.VERTEX_SHADER, vertSrc);
   const frag = compileShader(gl, gl.FRAGMENT_SHADER, fragSrc);
   if (!vert || !frag) return null;
-
   const program = gl.createProgram();
   if (!program) return null;
   gl.attachShader(program, vert);
   gl.attachShader(program, frag);
   gl.linkProgram(program);
-
   if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
     console.error("Program link error:", gl.getProgramInfoLog(program));
     gl.deleteProgram(program);
     return null;
   }
-
-  // Shaders can be detached after linking
   gl.detachShader(program, vert);
   gl.detachShader(program, frag);
   gl.deleteShader(vert);
   gl.deleteShader(frag);
-
   return program;
 }
 
-interface UniformLocations {
+interface Uniforms {
   u_time: WebGLUniformLocation | null;
   u_resolution: WebGLUniformLocation | null;
   u_bass: WebGLUniformLocation | null;
@@ -253,204 +300,157 @@ interface UniformLocations {
   u_beat: WebGLUniformLocation | null;
 }
 
-function getUniformLocations(
-  gl: WebGL2RenderingContext,
-  program: WebGLProgram
-): UniformLocations {
-  return {
-    u_time: gl.getUniformLocation(program, "u_time"),
-    u_resolution: gl.getUniformLocation(program, "u_resolution"),
-    u_bass: gl.getUniformLocation(program, "u_bass"),
-    u_mid: gl.getUniformLocation(program, "u_mid"),
-    u_high: gl.getUniformLocation(program, "u_high"),
-    u_rms: gl.getUniformLocation(program, "u_rms"),
-    u_beat: gl.getUniformLocation(program, "u_beat"),
-  };
+function dbToNorm(db: number, floor = -60, ceil = 0): number {
+  return Math.max(0, Math.min(1, (Math.max(floor, Math.min(ceil, db)) - floor) / (ceil - floor)));
 }
 
-// ─── Audio Processing Helpers ─────────────────────────────────────────────────
+// ─── Component (no width/height props — fills container) ──────────────────────
 
-/** Convert dB value (typically -60..0 range) to normalized 0..1 */
-function dbToNorm(db: number, floor: number = -60, ceiling: number = 0): number {
-  const clamped = Math.max(floor, Math.min(ceiling, db));
-  return (clamped - floor) / (ceiling - floor);
-}
-
-// ─── Component ────────────────────────────────────────────────────────────────
-
-export function VJVisualizer({ width, height }: Props) {
+export function VJVisualizer() {
+  const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const glRef = useRef<WebGL2RenderingContext | null>(null);
   const programRef = useRef<WebGLProgram | null>(null);
-  const uniformsRef = useRef<UniformLocations | null>(null);
+  const uniformsRef = useRef<Uniforms | null>(null);
   const vaoRef = useRef<WebGLVertexArrayObject | null>(null);
   const bufferRef = useRef<WebGLBuffer | null>(null);
   const dataRef = useRef<AudioData | null>(null);
-  const startTimeRef = useRef<number>(performance.now() / 1000);
-  const prevSizeRef = useRef({ w: 0, h: 0 });
+  const startTimeRef = useRef(performance.now() / 1000);
+  const sizeRef = useRef({ w: 0, h: 0 });
 
-  // Beat detection state
   const beatRef = useRef(0);
   const prevBassRef = useRef(0);
   const smoothBassRef = useRef(0);
   const smoothMidRef = useRef(0);
   const smoothHighRef = useRef(0);
   const smoothRmsRef = useRef(0);
+  const [size, setSize] = useState({ w: 0, h: 0 });
 
-  // Listen to audio data
-  useAudioData("audio-data", (payload) => {
-    dataRef.current = payload;
-  });
+  useAudioData("audio-data", (payload) => { dataRef.current = payload; });
 
-  // Initialize WebGL2
+  // ResizeObserver for container size
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const { width, height } = entry.contentRect;
+        const w = Math.floor(width);
+        const h = Math.floor(height);
+        sizeRef.current = { w, h };
+        setSize({ w, h });
+      }
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  // WebGL init
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-
-    const gl = canvas.getContext("webgl2", {
-      antialias: false,
-      alpha: false,
-      premultipliedAlpha: false,
-      preserveDrawingBuffer: false,
-    });
-    if (!gl) {
-      console.error("WebGL2 not supported");
-      return;
-    }
+    const gl = canvas.getContext("webgl2", { antialias: false, alpha: false });
+    if (!gl) return;
     glRef.current = gl;
-
-    // Compile and link shaders
     const program = createProgram(gl, VERT_SRC, FRAG_SRC);
-    if (!program) {
-      console.error("Failed to create shader program");
-      return;
-    }
+    if (!program) return;
     programRef.current = program;
-    uniformsRef.current = getUniformLocations(gl, program);
+    uniformsRef.current = {
+      u_time: gl.getUniformLocation(program, "u_time"),
+      u_resolution: gl.getUniformLocation(program, "u_resolution"),
+      u_bass: gl.getUniformLocation(program, "u_bass"),
+      u_mid: gl.getUniformLocation(program, "u_mid"),
+      u_high: gl.getUniformLocation(program, "u_high"),
+      u_rms: gl.getUniformLocation(program, "u_rms"),
+      u_beat: gl.getUniformLocation(program, "u_beat"),
+    };
 
-    // Create fullscreen quad geometry
-    // Two triangles covering clip space [-1, 1]
-    const vertices = new Float32Array([
-      -1, -1,
-       1, -1,
-      -1,  1,
-      -1,  1,
-       1, -1,
-       1,  1,
-    ]);
-
+    const verts = new Float32Array([-1,-1, 1,-1, -1,1, -1,1, 1,-1, 1,1]);
     const vao = gl.createVertexArray();
     gl.bindVertexArray(vao);
     vaoRef.current = vao;
-
-    const buffer = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
-    gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
-    bufferRef.current = buffer;
-
-    const posLoc = gl.getAttribLocation(program, "a_position");
-    gl.enableVertexAttribArray(posLoc);
-    gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
-
+    const buf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+    gl.bufferData(gl.ARRAY_BUFFER, verts, gl.STATIC_DRAW);
+    bufferRef.current = buf;
+    const pos = gl.getAttribLocation(program, "a_position");
+    gl.enableVertexAttribArray(pos);
+    gl.vertexAttribPointer(pos, 2, gl.FLOAT, false, 0, 0);
     gl.bindVertexArray(null);
-
     startTimeRef.current = performance.now() / 1000;
 
-    // Cleanup
     return () => {
       if (programRef.current) gl.deleteProgram(programRef.current);
       if (vaoRef.current) gl.deleteVertexArray(vaoRef.current);
       if (bufferRef.current) gl.deleteBuffer(bufferRef.current);
-      programRef.current = null;
-      vaoRef.current = null;
-      bufferRef.current = null;
-      uniformsRef.current = null;
       glRef.current = null;
     };
   }, []);
 
-  // Render loop
   useAnimationFrame(() => {
     const gl = glRef.current;
     const program = programRef.current;
-    const uniforms = uniformsRef.current;
+    const u = uniformsRef.current;
     const vao = vaoRef.current;
     const canvas = canvasRef.current;
-    if (!gl || !program || !uniforms || !vao || !canvas) return;
+    if (!gl || !program || !u || !vao || !canvas) return;
 
-    // Handle canvas resize with devicePixelRatio
+    const { w, h } = sizeRef.current;
+    if (w <= 0 || h <= 0) return;
+
     const dpr = window.devicePixelRatio || 1;
-    const displayW = Math.floor(width * dpr);
-    const displayH = Math.floor(height * dpr);
-
-    if (prevSizeRef.current.w !== displayW || prevSizeRef.current.h !== displayH) {
-      canvas.width = displayW;
-      canvas.height = displayH;
-      canvas.style.width = `${width}px`;
-      canvas.style.height = `${height}px`;
-      gl.viewport(0, 0, displayW, displayH);
-      prevSizeRef.current = { w: displayW, h: displayH };
+    const pw = Math.floor(w * dpr);
+    const ph = Math.floor(h * dpr);
+    if (canvas.width !== pw || canvas.height !== ph) {
+      canvas.width = pw;
+      canvas.height = ph;
+      gl.viewport(0, 0, pw, ph);
     }
 
-    // ─── Extract audio parameters ─────────────────────────────────────
     const data = dataRef.current;
-    let bass = 0;
-    let mid = 0;
-    let high = 0;
-    let rms = 0;
-
+    let bass = 0, mid = 0, high = 0, rms = 0;
     if (data) {
       const wf = data.waveform;
-      // band_l and band_r are [low, mid, high] in dB
-      bass = dbToNorm((wf.band_l[0] + wf.band_r[0]) * 0.5, -60, 0);
-      mid = dbToNorm((wf.band_l[1] + wf.band_r[1]) * 0.5, -60, 0);
-      high = dbToNorm((wf.band_l[2] + wf.band_r[2]) * 0.5, -60, 0);
-
-      // RMS from levels (already in dB)
-      rms = dbToNorm((data.levels.rms_l + data.levels.rms_r) * 0.5, -60, 0);
+      bass = (wf.band_l[0] + wf.band_r[0]) * 0.5;
+      mid = (wf.band_l[1] + wf.band_r[1]) * 0.5;
+      high = (wf.band_l[2] + wf.band_r[2]) * 0.5;
+      rms = dbToNorm((data.levels.rms_l + data.levels.rms_r) * 0.5);
     }
 
-    // ─── Smoothing (EMA) ──────────────────────────────────────────────
-    const smoothAlpha = 0.15;
-    smoothBassRef.current += (bass - smoothBassRef.current) * smoothAlpha;
-    smoothMidRef.current += (mid - smoothMidRef.current) * smoothAlpha;
-    smoothHighRef.current += (high - smoothHighRef.current) * smoothAlpha;
-    smoothRmsRef.current += (rms - smoothRmsRef.current) * smoothAlpha;
+    const a = 0.18;
+    smoothBassRef.current += (bass - smoothBassRef.current) * a;
+    smoothMidRef.current += (mid - smoothMidRef.current) * a;
+    smoothHighRef.current += (high - smoothHighRef.current) * a;
+    smoothRmsRef.current += (rms - smoothRmsRef.current) * a;
 
-    const sBass = smoothBassRef.current;
-    const sMid = smoothMidRef.current;
-    const sHigh = smoothHighRef.current;
-    const sRms = smoothRmsRef.current;
-
-    // ─── Beat detection ───────────────────────────────────────────────
-    // Detect sudden bass spikes relative to recent average
-    const bassThreshold = 0.12;
-    const bassDelta = bass - prevBassRef.current;
-    if (bassDelta > bassThreshold && bass > 0.25) {
-      beatRef.current = 1.0;
-    } else {
-      beatRef.current *= 0.92; // decay
-    }
+    const delta = bass - prevBassRef.current;
+    if (delta > 0.1 && bass > 0.2) beatRef.current = 1.0;
+    else beatRef.current *= 0.92;
     prevBassRef.current = bass;
 
-    // ─── Set uniforms and draw ────────────────────────────────────────
-    const now = performance.now() / 1000;
-    const elapsed = now - startTimeRef.current;
-
+    const elapsed = performance.now() / 1000 - startTimeRef.current;
     gl.useProgram(program);
-
-    gl.uniform1f(uniforms.u_time, elapsed);
-    gl.uniform2f(uniforms.u_resolution, displayW, displayH);
-    gl.uniform1f(uniforms.u_bass, sBass);
-    gl.uniform1f(uniforms.u_mid, sMid);
-    gl.uniform1f(uniforms.u_high, sHigh);
-    gl.uniform1f(uniforms.u_rms, sRms);
-    gl.uniform1f(uniforms.u_beat, beatRef.current);
+    gl.uniform1f(u.u_time, elapsed);
+    gl.uniform2f(u.u_resolution, pw, ph);
+    gl.uniform1f(u.u_bass, smoothBassRef.current);
+    gl.uniform1f(u.u_mid, smoothMidRef.current);
+    gl.uniform1f(u.u_high, smoothHighRef.current);
+    gl.uniform1f(u.u_rms, smoothRmsRef.current);
+    gl.uniform1f(u.u_beat, beatRef.current);
 
     gl.bindVertexArray(vao);
     gl.drawArrays(gl.TRIANGLES, 0, 6);
     gl.bindVertexArray(null);
   });
 
-  return <canvas ref={canvasRef} />;
+  return (
+    <div ref={containerRef} style={{ width: "100%", height: "100%", overflow: "hidden", borderRadius: 8 }}>
+      {size.w > 0 && size.h > 0 && (
+        <canvas
+          ref={canvasRef}
+          style={{ width: size.w, height: size.h, display: "block" }}
+        />
+      )}
+    </div>
+  );
 }
