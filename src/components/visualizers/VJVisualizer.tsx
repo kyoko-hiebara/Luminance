@@ -53,14 +53,14 @@ float noise(vec2 p) {
   return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
 }
 
-float fbm(vec2 p, int oct) {
+float fbm4(vec2 p) {
   float sum = 0.0, amp = 0.5, freq = 1.0;
-  for (int i = 0; i < 8; i++) {
-    if (i >= oct) break;
-    sum += noise(p * freq) * amp;
-    freq *= 2.0;
-    amp *= 0.5;
-  }
+  for (int i = 0; i < 4; i++) { sum += noise(p * freq) * amp; freq *= 2.0; amp *= 0.5; }
+  return sum;
+}
+float fbm6(vec2 p) {
+  float sum = 0.0, amp = 0.5, freq = 1.0;
+  for (int i = 0; i < 6; i++) { sum += noise(p * freq) * amp; freq *= 2.0; amp *= 0.5; }
   return sum;
 }
 
@@ -95,28 +95,24 @@ float sdCross(vec2 p, float size, float thick) {
   return min(d1, d2);
 }
 
-float sdArc(vec2 p, float r, float thick, float startAngle, float sweep) {
-  float a = atan(p.y, p.x) - startAngle;
-  a = mod(a + 3.14159, 6.28318) - 3.14159;
-  float inArc = step(a, sweep * 0.5) * step(-sweep * 0.5, a);
-  float ring = abs(length(p) - r) - thick;
-  return mix(length(p) - r, ring, inArc);
+float sdRing(vec2 p, float r, float thick) {
+  return abs(length(p) - r) - thick;
 }
 
 // Smooth min for metaball blending
-float smin(float a, float b, float k) {
-  float h = clamp(0.5 + 0.5 * (b - a) / k, 0.0, 1.0);
-  return mix(b, a, h) - k * h * (1.0 - h);
+float smin(float d1, float d2, float k) {
+  float h = clamp(0.5 + 0.5 * (d2 - d1) / k, 0.0, 1.0);
+  return mix(d2, d1, h) - k * h * (1.0 - h);
 }
 
 // ─── Domain Warp ──────────────────────────────────────────────────────────────
 
 vec2 domainWarp(vec2 p, float amt, float t) {
-  float n1 = fbm(p + vec2(t * 0.15, t * 0.12), 4);
-  float n2 = fbm(p + vec2(t * -0.1 + 5.2, t * 0.08 + 1.3), 4);
+  float n1 = fbm4(p + vec2(t * 0.15, t * 0.12));
+  float n2 = fbm4(p + vec2(t * -0.1 + 5.2, t * 0.08 + 1.3));
   vec2 w1 = vec2(n1, n2) * amt;
-  float n3 = fbm(p + w1 + vec2(t * 0.07 + 1.7, t * -0.13 + 9.2), 3);
-  float n4 = fbm(p + w1 + vec2(t * -0.06 + 8.3, t * 0.09 + 2.8), 3);
+  float n3 = fbm4(p + w1 + vec2(t * 0.07 + 1.7, t * -0.13 + 9.2));
+  float n4 = fbm4(p + w1 + vec2(t * -0.06 + 8.3, t * 0.09 + 2.8));
   return w1 + vec2(n3, n4) * amt * 0.5;
 }
 
@@ -148,25 +144,20 @@ float shapeLayer(vec2 uv, float t, float bass, float mid, float high, float beat
   float cross = sdCross(cp, crossSize, 0.012);
   d = min(d, cross);
 
-  // Arc trails around blob center
+  // Ring trails around blob center
   vec2 arcCenter = (b1 + b2) * 0.5;
   vec2 ap = uv - arcCenter;
-  float arcR = 0.35 + mid * 0.1;
-  float arcSweep = 1.5 + bass * 2.0;
-  float arc1 = sdArc(ap, arcR, 0.008, t * 0.5, arcSweep);
-  float arc2 = sdArc(ap, arcR * 0.75, 0.006, -t * 0.4 + 1.0, arcSweep * 0.8);
-  d = min(d, min(arc1, arc2));
+  float ringR = 0.35 + mid * 0.1;
+  float ring1 = sdRing(ap, ringR, 0.008);
+  float ring2 = sdRing(ap, ringR * 0.75, 0.006);
+  d = min(d, min(ring1, ring2));
 
-  // Floating circles (small, scattered)
-  for (int i = 0; i < 5; i++) {
-    float fi = float(i);
-    vec2 fp = vec2(
-      sin(fi * 2.1 + t * 0.2) * 0.7,
-      cos(fi * 1.7 + t * 0.15) * 0.5
-    );
-    float fr = 0.02 + 0.01 * sin(t * 0.8 + fi * 3.0);
-    d = min(d, sdCircle(uv - fp, fr));
-  }
+  // Floating circles (small, scattered) — unrolled for compatibility
+  d = min(d, sdCircle(uv - vec2(sin(0.0 + t*0.2)*0.7, cos(0.0 + t*0.15)*0.5), 0.02 + 0.01*sin(t*0.8)));
+  d = min(d, sdCircle(uv - vec2(sin(2.1 + t*0.2)*0.7, cos(1.7 + t*0.15)*0.5), 0.02 + 0.01*sin(t*0.8+3.0)));
+  d = min(d, sdCircle(uv - vec2(sin(4.2 + t*0.2)*0.7, cos(3.4 + t*0.15)*0.5), 0.02 + 0.01*sin(t*0.8+6.0)));
+  d = min(d, sdCircle(uv - vec2(sin(6.3 + t*0.2)*0.7, cos(5.1 + t*0.15)*0.5), 0.02 + 0.01*sin(t*0.8+9.0)));
+  d = min(d, sdCircle(uv - vec2(sin(8.4 + t*0.2)*0.7, cos(6.8 + t*0.15)*0.5), 0.02 + 0.01*sin(t*0.8+12.0)));
 
   // Dot grid (right area): high drives individual dot scale
   vec2 gp = uv - vec2(0.45, -0.3);
@@ -205,9 +196,8 @@ void main() {
   vec2 warp = domainWarp(p, warpAmt, t);
   vec2 warped = p + warp;
 
-  int oct = 4 + int(high * 3.0);
-  float pattern = fbm(warped, oct);
-  float pattern2 = fbm(warped * 1.5 + vec2(3.7, 8.1) + t * 0.05, oct);
+  float pattern = mix(fbm4(warped), fbm6(warped), high);
+  float pattern2 = mix(fbm4(warped * 1.5 + vec2(3.7, 8.1) + t * 0.05), fbm6(warped * 1.5 + vec2(3.7, 8.1) + t * 0.05), high);
   float combined = pattern * 0.6 + pattern2 * 0.4;
   combined = clamp(pow(combined, 0.8) * 1.3, 0.0, 1.0);
 
