@@ -390,7 +390,7 @@ export function VJVisualizer({ width, height }: Props) {
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const gl = canvas.getContext("webgl2", { antialias: false, alpha: false });
+    const gl = canvas.getContext("webgl2", { antialias: false, alpha: false, preserveDrawingBuffer: true });
     if (!gl) return;
     glRef.current = gl;
     const program = createProgram(gl, VERT_SRC, FRAG_SRC);

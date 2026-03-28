@@ -56,9 +56,11 @@ function captureLayout(compositeCanvas: HTMLCanvasElement): string | null {
     const pw = panelRect.width;
     const ph = panelRect.height;
 
-    // Panel background (no rounded corners for clean video output)
+    // Panel background with rounded corners
     ctx.fillStyle = colors.bgPanel;
-    ctx.fillRect(px, py, pw, ph);
+    ctx.beginPath();
+    ctx.roundRect(px, py, pw, ph, 8);
+    ctx.fill();
   }
 
   // Draw all canvases
