@@ -230,14 +230,14 @@ export function Loudness({ width, height }: Props) {
     ctx.font = "9px monospace";
     glowText(ctx, "dBFS", tpCenterX, padding.top + plotH * 0.38 + 18);
 
-    // L/R individual values
+    // L/R individual values (more spacing from dBFS label)
     const tpLStr = truePeakL <= -90 ? "-inf" : truePeakL.toFixed(1);
     const tpRStr = truePeakR <= -90 ? "-inf" : truePeakR.toFixed(1);
     const tpLColor = truePeakL > -1 ? colors.levelOver : truePeakL > -3 ? colors.levelWarn : colors.textDim;
     const tpRColor = truePeakR > -1 ? colors.levelOver : truePeakR > -3 ? colors.levelWarn : colors.textDim;
     ctx.font = "10px monospace";
-    glowText(ctx, `L ${tpLStr}`, tpCenterX, padding.top + plotH * 0.58, tpLColor, `${tpLColor}44`);
-    glowText(ctx, `R ${tpRStr}`, tpCenterX, padding.top + plotH * 0.58 + 16, tpRColor, `${tpRColor}44`);
+    glowText(ctx, `L ${tpLStr}`, tpCenterX, padding.top + plotH * 0.65, tpLColor, `${tpLColor}44`);
+    glowText(ctx, `R ${tpRStr}`, tpCenterX, padding.top + plotH * 0.65 + 16, tpRColor, `${tpRColor}44`);
 
     // Clip indicator (flashes red when > -0.3 dBFS)
     if (truePeak > -0.3) {
@@ -268,9 +268,6 @@ export function Loudness({ width, height }: Props) {
       ctx.lineTo(lastBarRight + 4, refY);
       ctx.stroke();
       ctx.setLineDash([]);
-      ctx.font = "7px monospace";
-      ctx.textAlign = "left";
-      glowText(ctx, "-14", lastBarRight + 4, refY + 3, colors.peakHold, "rgba(244,114,182,0.4)");
     }
 
     // Scale markers
