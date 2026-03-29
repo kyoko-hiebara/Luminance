@@ -244,14 +244,14 @@ export function Loudness({ width, height }: Props) {
       ctx.fillStyle = colors.levelOver;
       ctx.globalAlpha = 0.8;
       ctx.beginPath();
-      ctx.roundRect(tpX + 4, padding.top + plotH * 0.8, tpPanelW - 8, 20, 3);
+      ctx.roundRect(tpX + 4, padding.top + plotH * 0.88, tpPanelW - 8, 20, 3);
       ctx.fill();
       ctx.globalAlpha = 1;
       ctx.font = "bold 10px monospace";
       ctx.fillStyle = "#fff";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.fillText("CLIP", tpCenterX, padding.top + plotH * 0.8 + 10);
+      ctx.fillText("CLIP", tpCenterX, padding.top + plotH * 0.88 + 10);
       ctx.textBaseline = "alphabetic";
     }
 
