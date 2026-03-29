@@ -336,6 +336,9 @@ export function VJVisualizer({ width, height }: Props) {
   const [textVisible, setTextVisible] = useState(false);
   const [textPosIdx, setTextPosIdx] = useState(0);
   const [textOpacity, setTextOpacity] = useState(0);
+  // Glitch state: 0=none, 1=RGB split (pre-text), 2=horizontal blur (8-bar)
+  const glitchTypeRef = useRef(0);
+  const glitchIntensityRef = useRef(0);
   const transportRef = useRef<{ position_secs: number } | null>(null);
   const lastBarBlockRef = useRef(-1);
 
@@ -368,16 +371,33 @@ export function VJVisualizer({ width, height }: Props) {
       }
 
       if (shouldShow) {
-        // Fade in/out within the 4-bar window — long smooth transitions
-        const progress = barInBlock / 4; // 0..1 over 4 bars
+        const progress = barInBlock / 4;
         let opacity = 1;
-        if (progress < 0.25) opacity = progress / 0.25;             // 1 bar fade in
-        else if (progress > 0.65) opacity = (1 - progress) / 0.35;  // ~1.4 bars fade out
+        if (progress < 0.25) opacity = progress / 0.25;
+        else if (progress > 0.65) opacity = (1 - progress) / 0.35;
         setTextOpacity(Math.max(0, Math.min(1, opacity)));
         setTextVisible(true);
       } else {
         setTextVisible(false);
         setTextOpacity(0);
+      }
+
+      // Glitch timing
+      // Type 1: RGB split glitch — bar 15 of each 16-bar block (1 bar before text)
+      const isPreTextBar = barInBlock >= 15 && barInBlock < 16;
+      // Type 2: Horizontal blur — every 8 bars (bar 7-8), but NOT when pre-text glitch is active
+      const bar8Phase = currentBar % 8;
+      const isHBlurBar = bar8Phase >= 7 && bar8Phase < 8 && !isPreTextBar;
+
+      if (isPreTextBar && pos > 0.1) {
+        glitchTypeRef.current = 1;
+        glitchIntensityRef.current = (barInBlock - 15); // 0→1 over 1 bar
+      } else if (isHBlurBar && pos > 0.1) {
+        glitchTypeRef.current = 2;
+        glitchIntensityRef.current = (bar8Phase - 7); // 0→1 over 1 bar
+      } else {
+        glitchTypeRef.current = 0;
+        glitchIntensityRef.current = 0;
       }
 
       rafId = requestAnimationFrame(tick);
@@ -505,6 +525,62 @@ export function VJVisualizer({ width, height }: Props) {
     if (!ctx2) return;
     ctx2.clearRect(0, 0, width, height);
 
+    // ─── Glitch effects ──────────────────────────────────────────────
+    const glitchType = glitchTypeRef.current;
+    const glitchI = glitchIntensityRef.current;
+    const glCanvas = canvasRef.current;
+
+    if (glitchType > 0 && glCanvas && width > 0 && height > 0) {
+      if (glitchType === 1) {
+        // RGB split glitch: draw WebGL canvas offset in R/G/B channels
+        const offset = Math.round(3 + glitchI * 8);
+        ctx2.globalCompositeOperation = "lighter";
+
+        // Red channel (shifted right)
+        ctx2.globalAlpha = 0.35 + glitchI * 0.3;
+        ctx2.drawImage(glCanvas, offset, 0, width, height);
+
+        // Blue channel (shifted left)
+        ctx2.drawImage(glCanvas, -offset, 0, width, height);
+
+        // Scanline noise
+        ctx2.globalCompositeOperation = "source-over";
+        ctx2.globalAlpha = 0.08 + glitchI * 0.12;
+        const sliceCount = 5 + Math.floor(glitchI * 10);
+        for (let s = 0; s < sliceCount; s++) {
+          const sy = Math.random() * height;
+          const sh = 1 + Math.random() * 3;
+          const sx = (Math.random() - 0.5) * offset * 3;
+          ctx2.drawImage(glCanvas, 0, sy, width, sh, sx, sy, width, sh);
+        }
+
+        // Noise overlay
+        ctx2.fillStyle = `rgba(237,200,176,${0.03 + glitchI * 0.06})`;
+        for (let n = 0; n < 30; n++) {
+          const nx = Math.random() * width;
+          const ny = Math.random() * height;
+          ctx2.fillRect(nx, ny, Math.random() * 20 + 2, 1);
+        }
+
+        ctx2.globalAlpha = 1;
+        ctx2.globalCompositeOperation = "source-over";
+
+      } else if (glitchType === 2) {
+        // Horizontal motion blur: stretch slices horizontally
+        ctx2.globalAlpha = 0.25 + glitchI * 0.35;
+        const stretchCount = 4 + Math.floor(glitchI * 6);
+        for (let s = 0; s < stretchCount; s++) {
+          const sy = Math.random() * height;
+          const sh = 2 + Math.random() * (height * 0.08);
+          const stretchW = width * (1.1 + glitchI * 0.5);
+          const offsetX = (Math.random() - 0.5) * width * glitchI * 0.3;
+          ctx2.drawImage(glCanvas, 0, sy, width, sh, offsetX, sy, stretchW, sh);
+        }
+        ctx2.globalAlpha = 1;
+      }
+    }
+
+    // ─── Text overlay ────────────────────────────────────────────────
     const displayText = textRef.current || "";
     if (!textVisible || !displayText || textOpacity < 0.01) return;
 
