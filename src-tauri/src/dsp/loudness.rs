@@ -110,10 +110,10 @@ impl LoudnessProcessor {
         LoudnessData {
             momentary,
             short_term,
-            mid_m: 0.0,
-            side_m: 0.0,
-            l_m: 0.0,
-            r_m: 0.0,
+            true_peak_l: -90.0,
+            true_peak_r: -90.0,
+            mid_short: 0.0,
+            side_short: 0.0,
         }
     }
 

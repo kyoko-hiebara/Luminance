@@ -395,8 +395,6 @@ fn run_dsp_loop(
     let mut rms = RmsProcessor::new(300.0, sample_rate);
     let stereo_proc = StereoProcessor::new();
     let mut loudness = LoudnessProcessor::new(sample_rate);
-    let mut loudness_l = LoudnessProcessor::new(sample_rate);
-    let mut loudness_r = LoudnessProcessor::new(sample_rate);
     let mut loudness_m = LoudnessProcessor::new(sample_rate);
     let mut loudness_s = LoudnessProcessor::new(sample_rate);
 
@@ -444,19 +442,22 @@ fn run_dsp_loop(
             let levels = rms.process(left, right);
             let stereo_data = stereo_proc.process(left, right);
             let total_lufs = loudness.process(left, right);
-            let l_lufs = loudness_l.process(left, left);
-            let r_lufs = loudness_r.process(right, right);
             let mid: Vec<f32> = left.iter().zip(right.iter()).map(|(&l, &r)| (l + r) * 0.5).collect();
             let side_sig: Vec<f32> = left.iter().zip(right.iter()).map(|(&l, &r)| (l - r) * 0.5).collect();
             let mid_lufs = loudness_m.process(&mid, &mid);
             let side_lufs = loudness_s.process(&side_sig, &side_sig);
+            // True Peak: find max absolute sample value per channel
+            let tp_l = left.iter().fold(0.0f32, |m, &s| m.max(s.abs()));
+            let tp_r = right.iter().fold(0.0f32, |m, &s| m.max(s.abs()));
+            let tp_l_db = if tp_l > 0.0 { 20.0 * tp_l.log10() } else { -90.0 };
+            let tp_r_db = if tp_r > 0.0 { 20.0 * tp_r.log10() } else { -90.0 };
             let loudness_data = crate::dsp::LoudnessData {
                 momentary: total_lufs.momentary,
                 short_term: total_lufs.short_term,
-                mid_m: mid_lufs.momentary,
-                side_m: side_lufs.momentary,
-                l_m: l_lufs.momentary,
-                r_m: r_lufs.momentary,
+                true_peak_l: tp_l_db.max(-90.0),
+                true_peak_r: tp_r_db.max(-90.0),
+                mid_short: mid_lufs.short_term,
+                side_short: side_lufs.short_term,
             };
 
             let waveform_l = decimate_waveform(left, WAVEFORM_DISPLAY_SAMPLES);

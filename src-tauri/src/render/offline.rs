@@ -151,13 +151,15 @@ pub fn run_offline_render(
             let levels = rms.process(left, right);
             let stereo_data = stereo_proc.process(left, right);
             let total_lufs = loudness.process(left, right);
+            let tp_l = left.iter().fold(0.0f32, |m, &s| m.max(s.abs()));
+            let tp_r = right.iter().fold(0.0f32, |m, &s| m.max(s.abs()));
             let loudness_data = crate::dsp::LoudnessData {
                 momentary: total_lufs.momentary,
                 short_term: total_lufs.short_term,
-                mid_m: total_lufs.momentary,
-                side_m: -70.0,
-                l_m: total_lufs.momentary,
-                r_m: total_lufs.momentary,
+                true_peak_l: if tp_l > 0.0 { (20.0 * tp_l.log10()).max(-90.0) } else { -90.0 },
+                true_peak_r: if tp_r > 0.0 { (20.0 * tp_r.log10()).max(-90.0) } else { -90.0 },
+                mid_short: total_lufs.short_term,
+                side_short: -70.0,
             };
             let waveform_l = decimate_waveform(left, WAVEFORM_SAMPLES);
             let waveform_r = decimate_waveform(right, WAVEFORM_SAMPLES);
@@ -217,10 +219,10 @@ pub fn run_offline_render(
                 loudness: crate::dsp::LoudnessData {
                     momentary: -70.0,
                     short_term: -70.0,
-                    mid_m: -70.0,
-                    side_m: -70.0,
-                    l_m: -70.0,
-                    r_m: -70.0,
+                    true_peak_l: -90.0,
+                    true_peak_r: -90.0,
+                    mid_short: -70.0,
+                    side_short: -70.0,
                 },
                 spectrogram_frame: vec![-90.0; NUM_BANDS],
                 transport: None,

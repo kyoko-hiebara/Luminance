@@ -148,12 +148,13 @@ export function Loudness({ width, height }: Props) {
     const segRadius = Math.min(1.5, segH * 0.3);
 
     const loud = dataRef.current;
+    const truePeak = Math.max(loud?.true_peak_l ?? -90, loud?.true_peak_r ?? -90);
     const bars: { label: string; lufs: number }[] = [
-      { label: "T", lufs: loud?.momentary ?? -90 },
-      { label: "M", lufs: loud?.mid_m ?? -90 },
-      { label: "S", lufs: loud?.side_m ?? -90 },
-      { label: "L", lufs: loud?.l_m ?? -90 },
-      { label: "R", lufs: loud?.r_m ?? -90 },
+      { label: "M", lufs: loud?.momentary ?? -90 },
+      { label: "S", lufs: loud?.short_term ?? -90 },
+      { label: "TP", lufs: truePeak },
+      { label: "Mid", lufs: loud?.mid_short ?? -90 },
+      { label: "Side", lufs: loud?.side_short ?? -90 },
     ];
 
     const drawLedBar = (lufs: number, barX: number, bw: number) => {
