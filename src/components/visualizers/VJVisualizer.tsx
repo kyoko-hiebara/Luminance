@@ -398,8 +398,8 @@ export function VJVisualizer({ width, height }: Props) {
         glitchTypeRef.current = 2;
         glitchIntensityRef.current = (bar8Phase - 7);
       } else {
-        // Flash when horizontal blur just ended
-        if (prevGlitchTypeRef.current === 2 && glitchTypeRef.current !== 2) {
+        // Flash when horizontal blur just ended OR RGB split just ended (text appears)
+        if (prevGlitchTypeRef.current === 2 || prevGlitchTypeRef.current === 1) {
           flashRef.current = 1.0;
         }
         glitchTypeRef.current = 0;
