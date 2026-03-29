@@ -137,10 +137,12 @@ export function Loudness({ width, height }: Props) {
     const plotH = canvasHeight - padding.top - padding.bottom;
     if (plotW <= 0 || plotH <= 0) return;
 
-    // 5 bars: Total, Mid, Side, L, R
-    const barCount = 5;
+    // 4 LUFS bars + TP numeric display on the right
+    const tpPanelW = Math.max(28, Math.round(plotW * 0.18));
+    const barsAreaW = plotW - tpPanelW - 6; // 6px gap
+    const barCount = 4;
     const totalGap = Math.max(barCount - 1, 0) * 4;
-    const barWidth = Math.max(4, Math.floor((plotW - totalGap) / barCount));
+    const barWidth = Math.max(4, Math.floor((barsAreaW - totalGap) / barCount));
     const barStep = barWidth + 4;
 
     const segGap = 2;
@@ -148,11 +150,12 @@ export function Loudness({ width, height }: Props) {
     const segRadius = Math.min(1.5, segH * 0.3);
 
     const loud = dataRef.current;
-    const truePeak = Math.max(loud?.true_peak_l ?? -90, loud?.true_peak_r ?? -90);
+    const truePeakL = loud?.true_peak_l ?? -90;
+    const truePeakR = loud?.true_peak_r ?? -90;
+    const truePeak = Math.max(truePeakL, truePeakR);
     const bars: { label: string; lufs: number }[] = [
       { label: "M", lufs: loud?.momentary ?? -90 },
       { label: "S", lufs: loud?.short_term ?? -90 },
-      { label: "TP", lufs: truePeak },
       { label: "Mid", lufs: loud?.mid_short ?? -90 },
       { label: "Side", lufs: loud?.side_short ?? -90 },
     ];
@@ -195,6 +198,61 @@ export function Loudness({ width, height }: Props) {
     for (let b = 0; b < barCount; b++) {
       const barX = padding.left + b * barStep;
       drawLedBar(bars[b].lufs, barX, barWidth);
+    }
+
+    // ─── True Peak numeric panel (right side) ──────────────────────────
+    const tpX = padding.left + barsAreaW + 6;
+    const tpCenterX = tpX + tpPanelW / 2;
+
+    // TP background
+    ctx.fillStyle = "rgba(30,30,50,0.3)";
+    ctx.beginPath();
+    ctx.roundRect(tpX, padding.top, tpPanelW, plotH, 4);
+    ctx.fill();
+    ctx.strokeStyle = colors.borderPanel;
+    ctx.lineWidth = 0.5;
+    ctx.beginPath();
+    ctx.roundRect(tpX, padding.top, tpPanelW, plotH, 4);
+    ctx.stroke();
+
+    // TP label
+    ctx.font = "bold 8px monospace";
+    ctx.textAlign = "center";
+    glowText(ctx, "TP", tpCenterX, padding.top + 14, colors.textPrimary, "rgba(237,237,244,0.35)");
+
+    // TP value (large)
+    const tpStr = truePeak <= -90 ? "-inf" : truePeak.toFixed(1);
+    const tpColor = truePeak > -1 ? colors.levelOver : truePeak > -3 ? colors.levelWarn : colors.textPrimary;
+    ctx.font = "bold 12px monospace";
+    glowText(ctx, tpStr, tpCenterX, padding.top + plotH * 0.38, tpColor, `${tpColor}66`);
+
+    // dBFS unit
+    ctx.font = "7px monospace";
+    glowText(ctx, "dBFS", tpCenterX, padding.top + plotH * 0.38 + 14);
+
+    // L/R individual values
+    const tpLStr = truePeakL <= -90 ? "-inf" : truePeakL.toFixed(1);
+    const tpRStr = truePeakR <= -90 ? "-inf" : truePeakR.toFixed(1);
+    const tpLColor = truePeakL > -1 ? colors.levelOver : truePeakL > -3 ? colors.levelWarn : colors.textDim;
+    const tpRColor = truePeakR > -1 ? colors.levelOver : truePeakR > -3 ? colors.levelWarn : colors.textDim;
+    ctx.font = "8px monospace";
+    glowText(ctx, `L ${tpLStr}`, tpCenterX, padding.top + plotH * 0.6, tpLColor, `${tpLColor}44`);
+    glowText(ctx, `R ${tpRStr}`, tpCenterX, padding.top + plotH * 0.6 + 12, tpRColor, `${tpRColor}44`);
+
+    // Clip indicator (flashes red when > -0.3 dBFS)
+    if (truePeak > -0.3) {
+      ctx.fillStyle = colors.levelOver;
+      ctx.globalAlpha = 0.8;
+      ctx.beginPath();
+      ctx.roundRect(tpX + 4, padding.top + plotH * 0.78, tpPanelW - 8, 16, 3);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+      ctx.font = "bold 8px monospace";
+      ctx.fillStyle = "#fff";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("CLIP", tpCenterX, padding.top + plotH * 0.78 + 8);
+      ctx.textBaseline = "alphabetic";
     }
 
     // -14 LUFS reference line
