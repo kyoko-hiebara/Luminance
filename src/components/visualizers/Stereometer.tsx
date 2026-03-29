@@ -158,7 +158,7 @@ export function Stereometer({ width, height }: Props) {
     const displaySR = sampleRateRef.current / DECIMATE_RATIO;
     const targetSamples = Math.round(noteSec * displaySR);
 
-    const stripW = 14;
+    const stripW = Math.max(6, Math.round(width / 12));
     const waveform = waveformRef.current;
 
     const drawMiniScope = (samples: number[] | undefined, x: number, label: string) => {
