@@ -193,9 +193,9 @@ export function Stereometer({ width, height }: Props) {
       // Waveform — rotated 90° (time flows top to bottom)
       const step = displayLen / scopeFullH;
       ctx.save();
-      ctx.shadowColor = "#A3D9D9";
+      ctx.shadowColor = "#c26a6e";
       ctx.shadowBlur = 3;
-      ctx.strokeStyle = "#A3D9D9";
+      ctx.strokeStyle = "#c26a6e";
       ctx.lineWidth = 1;
       ctx.beginPath();
       for (let py = 0; py < scopeFullH; py++) {
@@ -237,11 +237,11 @@ export function Stereometer({ width, height }: Props) {
         const amp = Math.sqrt(l * l + r * r);
         const dotSize = 1.5 + amp * 3.0;
 
-        // Color: navy center (#B7C5F4), teal at edges (#A3D9D9)
+        // Twilight: purple center (#8b4277) → peach edges (#e8a77a)
         const edgeness = Math.min(1, amp * 2);
-        const cr = Math.round(0xB7 + edgeness * (0xA3 - 0xB7));
-        const cg = Math.round(0xC5 + edgeness * (0xD9 - 0xC5));
-        const cb = Math.round(0xF4 + edgeness * (0xD9 - 0xF4));
+        const cr = Math.round(0x8b + edgeness * (0xe8 - 0x8b));
+        const cg = Math.round(0x42 + edgeness * (0xa7 - 0x42));
+        const cb = Math.round(0x77 + edgeness * (0x7a - 0x77));
         const ca = 0.5 + edgeness * 0.4;
 
         ctx.fillStyle = `rgba(${cr},${cg},${cb},${ca})`;
@@ -252,8 +252,8 @@ export function Stereometer({ width, height }: Props) {
 
       // Bright center glow
       const glowGrad = ctx.createRadialGradient(scopeCX, scopeCY, 0, scopeCX, scopeCY, scopeR * 0.5);
-      glowGrad.addColorStop(0, "rgba(183,197,244,0.06)");
-      glowGrad.addColorStop(1, "rgba(183,197,244,0)");
+      glowGrad.addColorStop(0, "rgba(194,106,110,0.06)");
+      glowGrad.addColorStop(1, "rgba(194,106,110,0)");
       ctx.fillStyle = glowGrad;
       ctx.fillRect(0, 0, width, scopeH);
     }

@@ -189,15 +189,16 @@ export function Waveform({ width, height }: Props) {
     const fwp = frameWritePos.current;
     const framesInView = Math.max(1, Math.ceil(viewSamples / SAMPLES_PER_FRAME));
 
-    // Plasma hue mapping: Purple(270) → Magenta(310) → Pink(340) → Orange(20) → Yellow(55)
+    // Twilight_shifted: warm(bass) → cream → cool(treble) → dark navy
     const balToHue = (lo: number, mi: number, hi: number, exp: number) => {
       const tot = lo + mi + hi;
-      if (tot < 0.001) return 270; // purple at silence
+      if (tot < 0.001) return 280; // dark purple at silence
       const bal = (mi * 0.5 + hi) / tot;
       const t = Math.pow(Math.max(0.001, bal), exp);
       const stops = [
-        [0, 270], [0.2, 290], [0.4, 320],
-        [0.6, 345], [0.8, 20], [1.0, 55],
+        [0, 280], [0.15, 330], [0.3, 10],
+        [0.45, 30], [0.55, 45],
+        [0.7, 195], [0.85, 215], [1.0, 235],
       ];
       for (let i = 0; i < stops.length - 1; i++) {
         if (t <= stops[i + 1][0]) {
@@ -208,7 +209,7 @@ export function Waveform({ width, height }: Props) {
           return ((h0 + (h1 - h0) * f) + 360) % 360;
         }
       }
-      return 55;
+      return 235;
     };
 
     const hueL = new Float32Array(framesInView);
