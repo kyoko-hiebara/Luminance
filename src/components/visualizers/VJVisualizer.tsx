@@ -331,7 +331,7 @@ export function VJVisualizer({ width, height }: Props) {
   const smoothRmsRef = useRef(0);
 
   // VJ text overlay
-  const { bpmRef } = useBpm();
+  const { bpmRef, beatOffsetRef } = useBpm();
   const { textRef } = useVjText();
   const [textVisible, setTextVisible] = useState(false);
   const [textPosIdx, setTextPosIdx] = useState(0);
@@ -355,10 +355,12 @@ export function VJVisualizer({ width, height }: Props) {
   useEffect(() => {
     let rafId = 0;
     const tick = () => {
-      const pos = transportRef.current?.position_secs ?? 0;
+      const rawPos = transportRef.current?.position_secs ?? 0;
       const currentBpm = bpmRef.current;
       const beatSec = 60 / currentBpm;
       const barSec = beatSec * 4;
+      // Subtract beat offset so bar 0 aligns with the first kick
+      const pos = Math.max(0, rawPos - beatOffsetRef.current);
       const currentBar = pos / barSec;
       const barBlock = Math.floor(currentBar / 16); // which 16-bar cycle
       const barInBlock = currentBar % 16;            // position within cycle

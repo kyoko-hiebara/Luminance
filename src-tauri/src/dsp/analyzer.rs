@@ -7,15 +7,17 @@ pub struct FileAnalysis {
     pub rms_l_db: f32,
     pub rms_r_db: f32,
     pub dynamic_range_db: f32,
-    /// Density (max-min per 512-sample window) percentiles
     pub density_p10: f32,
     pub density_p50: f32,
     pub density_p90: f32,
     pub density_max: f32,
-    /// Rough integrated loudness estimate (unweighted, for range-setting only)
     pub integrated_loudness_estimate: f32,
     pub sample_rate: u32,
     pub duration_secs: f64,
+    /// Detected BPM (0 if detection failed)
+    pub detected_bpm: f32,
+    /// Beat offset in seconds (time of first significant onset/kick)
+    pub beat_offset_secs: f64,
 }
 
 const WINDOW_SIZE: usize = 512;
@@ -140,6 +142,9 @@ pub fn analyze(interleaved: &[f32], channels: u16, sample_rate: u32) -> FileAnal
         -70.0
     };
 
+    // ─── BPM detection via onset autocorrelation ──────────────────────
+    let (detected_bpm, beat_offset_secs) = detect_bpm_and_offset(interleaved, ch, sample_rate);
+
     FileAnalysis {
         peak_l_db: to_db(peak_l).max(-90.0),
         peak_r_db: to_db(peak_r).max(-90.0),
@@ -153,7 +158,99 @@ pub fn analyze(interleaved: &[f32], channels: u16, sample_rate: u32) -> FileAnal
         integrated_loudness_estimate: integrated.max(-70.0),
         sample_rate,
         duration_secs: total_frames as f64 / sample_rate as f64,
+        detected_bpm,
+        beat_offset_secs,
     }
+}
+
+/// Detect BPM and first-beat offset via onset strength autocorrelation.
+fn detect_bpm_and_offset(interleaved: &[f32], channels: usize, sample_rate: u32) -> (f32, f64) {
+    let sr = sample_rate as usize;
+    let total_frames = interleaved.len() / channels.max(1);
+
+    // Step 1: Compute onset strength envelope (~100 Hz rate)
+    let hop = sr / 100; // ~10ms hops = 100 onset values per second
+    let onset_len = total_frames / hop;
+    if onset_len < 200 {
+        return (0.0, 0.0); // too short to detect
+    }
+
+    let mut onset_env = Vec::with_capacity(onset_len);
+    let mut prev_energy = 0.0_f64;
+
+    for i in 0..onset_len {
+        let start = i * hop;
+        let end = ((i + 1) * hop).min(total_frames);
+        let mut energy = 0.0_f64;
+        for f in start..end {
+            let offset = f * channels;
+            let mono = if channels >= 2 {
+                (interleaved[offset] + interleaved[offset + 1]) as f64 * 0.5
+            } else {
+                interleaved[offset] as f64
+            };
+            energy += mono * mono;
+        }
+        energy /= (end - start) as f64;
+
+        // Half-wave rectified difference (onset = energy increase)
+        let onset = (energy - prev_energy).max(0.0);
+        onset_env.push(onset as f32);
+        prev_energy = energy;
+    }
+
+    // Step 2: Autocorrelation over BPM range 60-200
+    let onset_rate = 100.0; // onsets per second
+    let min_lag = (onset_rate * 60.0 / 200.0) as usize; // lag for 200 BPM
+    let max_lag = (onset_rate * 60.0 / 60.0) as usize;  // lag for 60 BPM
+    let max_lag = max_lag.min(onset_env.len() / 2);
+
+    if min_lag >= max_lag {
+        return (0.0, 0.0);
+    }
+
+    let mut best_lag = min_lag;
+    let mut best_corr = 0.0_f64;
+
+    // Use first 30 seconds max for autocorrelation
+    let ac_len = onset_env.len().min(3000);
+
+    for lag in min_lag..=max_lag {
+        let mut corr = 0.0_f64;
+        let n = ac_len - lag;
+        for i in 0..n {
+            corr += onset_env[i] as f64 * onset_env[i + lag] as f64;
+        }
+        corr /= n as f64;
+
+        if corr > best_corr {
+            best_corr = corr;
+            best_lag = lag;
+        }
+    }
+
+    let detected_bpm = if best_corr > 0.0 {
+        (onset_rate * 60.0 / best_lag as f64) as f32
+    } else {
+        0.0
+    };
+
+    // Round to nearest 0.5 BPM
+    let detected_bpm = (detected_bpm * 2.0).round() / 2.0;
+
+    // Step 3: Find first significant onset (beat offset)
+    let mean_onset: f32 = onset_env.iter().sum::<f32>() / onset_env.len() as f32;
+    let threshold = mean_onset * 3.0; // first onset significantly above average
+
+    let mut beat_offset_secs = 0.0_f64;
+    for (i, &val) in onset_env.iter().enumerate() {
+        if val > threshold {
+            beat_offset_secs = i as f64 / onset_rate;
+            break;
+        }
+    }
+
+    (detected_bpm, beat_offset_secs)
 }
 
 #[cfg(test)]

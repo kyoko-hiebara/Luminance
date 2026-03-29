@@ -5,6 +5,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { colors } from "@/lib/colors";
 import { useBpm } from "@/hooks/useBpm";
 import { useVjText } from "@/hooks/useVjText";
+import { useFileAnalysis } from "@/hooks/useFileAnalysis";
 import { RenderDialog } from "@/components/RenderDialog";
 import type { AudioData } from "@/hooks/useAudioData";
 
@@ -24,10 +25,19 @@ interface ToolbarProps {
 }
 
 export function Toolbar({ onRegisterDropHandler }: ToolbarProps) {
-  const { bpm, setBpm } = useBpm();
+  const { bpm, setBpm, setBeatOffset } = useBpm();
   const { text: vjText, setText: setVjText } = useVjText();
   const [bpmDraft, setBpmDraft] = useState(String(bpm));
   const bpmInputRef = useRef<HTMLInputElement>(null);
+
+  // Auto-set BPM and beat offset from file analysis
+  useFileAnalysis((data) => {
+    if (data && data.detected_bpm > 0) {
+      setBpm(Math.round(data.detected_bpm));
+      setBpmDraft(String(Math.round(data.detected_bpm)));
+      setBeatOffset(data.beat_offset_secs);
+    }
+  });
 
   const commitBpm = useCallback(() => {
     const parsed = parseInt(bpmDraft);

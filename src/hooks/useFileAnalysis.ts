@@ -14,6 +14,8 @@ export interface FileAnalysis {
   integrated_loudness_estimate: number;
   sample_rate: number;
   duration_secs: number;
+  detected_bpm: number;
+  beat_offset_secs: number;
 }
 
 /**
