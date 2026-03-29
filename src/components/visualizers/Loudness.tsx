@@ -291,7 +291,7 @@ export function Loudness({ width, height }: Props) {
     }
 
     // Bar labels
-    ctx.font = "bold 6px monospace";
+    ctx.font = "bold 10px monospace";
     ctx.textAlign = "center";
     for (let b = 0; b < barCount; b++) {
       const barX = padding.left + b * barStep;
