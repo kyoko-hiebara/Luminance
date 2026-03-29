@@ -237,11 +237,11 @@ export function Stereometer({ width, height }: Props) {
         const amp = Math.sqrt(l * l + r * r);
         const dotSize = 1.5 + amp * 3.0;
 
-        // Plasma-adjacent: purple center (#9c179e) → warm white edges (#f5e0d0)
+        // Cream center (#edc8b0) → warm white edges (#f5e0d0)
         const edgeness = Math.min(1, amp * 2);
-        const cr = Math.round(0x9c + edgeness * (0xf5 - 0x9c));
-        const cg = Math.round(0x17 + edgeness * (0xe0 - 0x17));
-        const cb = Math.round(0x9e + edgeness * (0xd0 - 0x9e));
+        const cr = Math.round(0xed + edgeness * (0xf5 - 0xed));
+        const cg = Math.round(0xc8 + edgeness * (0xe0 - 0xc8));
+        const cb = Math.round(0xb0 + edgeness * (0xd0 - 0xb0));
         const ca = 0.5 + edgeness * 0.4;
 
         ctx.fillStyle = `rgba(${cr},${cg},${cb},${ca})`;

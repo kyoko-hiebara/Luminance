@@ -268,14 +268,14 @@ export function Spectrum({ width, height }: Props) {
       ctx.quadraticCurveTo(prev.x, prev.y, (prev.x + curr.x) / 2, (prev.y + curr.y) / 2);
     }
     ctx.lineTo(last.x, last.y);
-    ctx.shadowColor = "rgba(210,210,255,0.7)";
+    ctx.shadowColor = "rgba(237,200,176,0.7)";
     ctx.shadowBlur = 28;
-    ctx.strokeStyle = "rgba(230,230,255,0.35)";
+    ctx.strokeStyle = "rgba(245,224,208,0.35)";
     ctx.lineWidth = 5;
     ctx.stroke();
     ctx.restore();
 
-    // Crisp main line
+    // Crisp main line (warm cream, matching Oscilloscope)
     ctx.beginPath();
     ctx.moveTo(points[0].x, points[0].y);
     for (let i = 1; i < points.length; i++) {
@@ -284,7 +284,7 @@ export function Spectrum({ width, height }: Props) {
       ctx.quadraticCurveTo(prev.x, prev.y, (prev.x + curr.x) / 2, (prev.y + curr.y) / 2);
     }
     ctx.lineTo(last.x, last.y);
-    ctx.strokeStyle = colors.textPrimary;
+    ctx.strokeStyle = "#edc8b0";
     ctx.lineWidth = 1.8;
     ctx.stroke();
 

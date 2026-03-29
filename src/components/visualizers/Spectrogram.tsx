@@ -23,17 +23,17 @@ function dbToColor(db: number): [number, number, number] {
   // Apply a slight gamma curve to brighten mid-levels
   const tAdjusted = Math.pow(t, 0.85);
 
-  // Plasma colormap (matplotlib)
+  // Plasma → warm cream (matching Oscilloscope line color at peak)
   const stops: Array<{ pos: number; r: number; g: number; b: number }> = [
     { pos: 0.0,  r: 0x0d, g: 0x08, b: 0x87 },  // #0d0887 deep purple (silence)
     { pos: 0.15, r: 0x41, g: 0x04, b: 0x9d },  // #41049d purple
-    { pos: 0.3,  r: 0x7e, g: 0x03, b: 0xa5 },  // #7e03a5 violet
-    { pos: 0.42, r: 0x9c, g: 0x17, b: 0x9e },  // #9c179e magenta
-    { pos: 0.55, r: 0xcc, g: 0x47, b: 0x78 },  // #cc4778 pink
-    { pos: 0.67, r: 0xed, g: 0x79, b: 0x53 },  // #ed7953 orange
-    { pos: 0.8,  r: 0xfb, g: 0xb6, b: 0x1a },  // #fbb61a gold
-    { pos: 0.92, r: 0xf0, g: 0xf9, b: 0x21 },  // #f0f921 yellow
-    { pos: 1.0,  r: 0xfc, g: 0xff, b: 0xa6 },  // #fcffa6 bright yellow-white
+    { pos: 0.28, r: 0x7e, g: 0x03, b: 0xa5 },  // #7e03a5 violet
+    { pos: 0.40, r: 0x9c, g: 0x17, b: 0x9e },  // #9c179e magenta
+    { pos: 0.52, r: 0xcc, g: 0x47, b: 0x78 },  // #cc4778 pink
+    { pos: 0.64, r: 0xed, g: 0x79, b: 0x53 },  // #ed7953 orange
+    { pos: 0.76, r: 0xfb, g: 0xb6, b: 0x1a },  // #fbb61a gold
+    { pos: 0.88, r: 0xed, g: 0xc8, b: 0xb0 },  // #edc8b0 warm cream
+    { pos: 1.0,  r: 0xf5, g: 0xe0, b: 0xd0 },  // #f5e0d0 light cream-white
   ];
 
   // Find surrounding stops
