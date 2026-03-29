@@ -391,14 +391,23 @@ export function VJVisualizer({ width, height }: Props) {
       const isPreTextBar = barInBlock >= 15 && barInBlock < 16;
       // Type 2: Horizontal blur — every 8 bars (bar 7-8), but NOT when pre-text glitch is active
       const bar8Phase = currentBar % 8;
-      const isHBlurBar = bar8Phase >= 7 && bar8Phase < 8 && !isPreTextBar;
+      // Horizontal blur: bars 6-7 of each 8-bar block (2 bars, with fade in/out)
+      const isHBlurBar = bar8Phase >= 6 && bar8Phase < 8 && !isPreTextBar;
 
       if (isPreTextBar && pos > 0.1) {
         glitchTypeRef.current = 1;
         glitchIntensityRef.current = (barInBlock - 15);
       } else if (isHBlurBar && pos > 0.1) {
         glitchTypeRef.current = 2;
-        glitchIntensityRef.current = (bar8Phase - 7);
+        // Fade in over first bar (6→7), fade out over second bar (7→8)
+        const blurProgress = (bar8Phase - 6) / 2; // 0→1 over 2 bars
+        if (blurProgress < 0.4) {
+          glitchIntensityRef.current = blurProgress / 0.4; // fade in
+        } else if (blurProgress > 0.7) {
+          glitchIntensityRef.current = (1 - blurProgress) / 0.3; // fade out
+        } else {
+          glitchIntensityRef.current = 1.0; // full intensity
+        }
       } else {
         // Flash when horizontal blur just ended OR RGB split just ended (text appears)
         if (prevGlitchTypeRef.current === 2 || prevGlitchTypeRef.current === 1) {
