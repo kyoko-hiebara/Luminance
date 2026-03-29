@@ -154,8 +154,8 @@ export function Loudness({ width, height }: Props) {
     const truePeakR = loud?.true_peak_r ?? -90;
     const truePeak = Math.max(truePeakL, truePeakR);
     const bars: { label: string; lufs: number }[] = [
-      { label: "M", lufs: loud?.momentary ?? -90 },
-      { label: "S", lufs: loud?.short_term ?? -90 },
+      { label: "Momentary", lufs: loud?.momentary ?? -90 },
+      { label: "Short", lufs: loud?.short_term ?? -90 },
       { label: "Mid", lufs: loud?.mid_short ?? -90 },
       { label: "Side", lufs: loud?.side_short ?? -90 },
     ];
@@ -291,7 +291,7 @@ export function Loudness({ width, height }: Props) {
     }
 
     // Bar labels
-    ctx.font = "bold 8px monospace";
+    ctx.font = "bold 6px monospace";
     ctx.textAlign = "center";
     for (let b = 0; b < barCount; b++) {
       const barX = padding.left + b * barStep;
