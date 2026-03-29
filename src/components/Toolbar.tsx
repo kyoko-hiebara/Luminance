@@ -215,7 +215,7 @@ export function Toolbar({ onRegisterDropHandler }: ToolbarProps) {
     >
       <span
         className="text-sm font-bold text-accent tracking-wide"
-        style={{ textShadow: "0 0 10px rgba(139,92,246,0.5)" }}
+        style={{ textShadow: "0 0 10px rgba(195,63,69,0.5)" }}
       >
         LUMINANCE
       </span>
@@ -226,7 +226,7 @@ export function Toolbar({ onRegisterDropHandler }: ToolbarProps) {
         onClick={openFile}
         disabled={isLoading}
         className="px-3 py-1 text-xs text-text-primary hover:bg-grid transition-colors disabled:opacity-50"
-        style={{ borderRadius: 4, backgroundColor: "#1e1e2e", border: "1px solid rgba(255,255,255,0.06)" }}
+        style={{ borderRadius: 4, backgroundColor: "#2E4141", border: "1px solid rgba(255,255,255,0.06)" }}
       >
         Open File
       </button>
@@ -333,7 +333,7 @@ export function Toolbar({ onRegisterDropHandler }: ToolbarProps) {
           }}
           disabled={isLoading}
           className="px-3 py-1 text-xs text-text-primary hover:bg-grid transition-colors disabled:opacity-50"
-          style={{ borderRadius: 4, backgroundColor: "#1e1e2e", border: "1px solid rgba(255,255,255,0.06)" }}
+          style={{ borderRadius: 4, backgroundColor: "#2E4141", border: "1px solid rgba(255,255,255,0.06)" }}
         >
           Mic
         </button>
@@ -404,7 +404,7 @@ export function Toolbar({ onRegisterDropHandler }: ToolbarProps) {
           <button
             onClick={() => setShowRender(true)}
             className="px-3 py-1 text-xs text-text-primary hover:bg-grid transition-colors"
-            style={{ borderRadius: 4, backgroundColor: "#1e1e2e", border: "1px solid rgba(255,255,255,0.06)" }}
+            style={{ borderRadius: 4, backgroundColor: "#2E4141", border: "1px solid rgba(255,255,255,0.06)" }}
           >
             Render
           </button>
@@ -417,7 +417,7 @@ export function Toolbar({ onRegisterDropHandler }: ToolbarProps) {
           <button
             onClick={stopAudio}
             className="px-3 py-1 text-xs rounded text-level-over hover:bg-level-over/30 transition-colors"
-            style={{ border: "1px solid rgba(239,68,68,0.3)", backgroundColor: "rgba(239,68,68,0.1)" }}
+            style={{ border: "1px solid rgba(149,41,45,0.3)", backgroundColor: "rgba(149,41,45,0.1)" }}
           >
             Stop
           </button>

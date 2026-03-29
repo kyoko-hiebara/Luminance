@@ -111,18 +111,18 @@ function captureLayout(compositeCanvas: HTMLCanvasElement): string | null {
     const title = tbEl.getAttribute("data-panel-title") || "";
 
     // Title bar background
-    ctx.fillStyle = "#1e1e34";
+    ctx.fillStyle = "#0B4149";
     ctx.fillRect(tx, ty, tbRect.width, tbRect.height);
 
     // Accent dot
-    ctx.fillStyle = "rgba(139,92,246,0.6)";
+    ctx.fillStyle = "rgba(195,63,69,0.6)";
     ctx.beginPath();
     ctx.arc(tx + 14, ty + tbRect.height / 2, 2.5, 0, Math.PI * 2);
     ctx.fill();
 
     // Title text
     ctx.font = "bold 10px monospace";
-    ctx.fillStyle = "#c0c0d8";
+    ctx.fillStyle = "#A3D9D9";
     ctx.textAlign = "left";
     ctx.textBaseline = "middle";
     ctx.fillText(title.toUpperCase(), tx + 24, ty + tbRect.height / 2);

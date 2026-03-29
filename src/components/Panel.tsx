@@ -29,26 +29,26 @@ export function Panel({ title, hideTitle, children }: Props) {
     <div
       data-panel
       className="flex flex-col h-full rounded-lg border border-border-panel bg-bg-panel overflow-hidden"
-      style={{ boxShadow: "0 0 16px rgba(139,92,246,0.06), 0 2px 6px rgba(0,0,0,0.4)" }}
+      style={{ boxShadow: "0 0 16px rgba(195,63,69,0.06), 0 2px 6px rgba(0,0,0,0.4)" }}
     >
       {!hideTitle && (
         <div
           data-panel-title={title}
           className="flex items-center px-3 py-1.5 border-b border-border-panel"
-          style={{ background: "linear-gradient(to right, #1e1e34, transparent)" }}
+          style={{ background: "linear-gradient(to right, #0B4149, transparent)" }}
         >
           <span
             className="inline-block w-1.5 h-1.5 rounded-full mr-2 flex-shrink-0"
             style={{
-              backgroundColor: "rgba(139,92,246,0.6)",
-              boxShadow: "0 0 4px rgba(139,92,246,0.4)",
+              backgroundColor: "rgba(195,63,69,0.6)",
+              boxShadow: "0 0 4px rgba(195,63,69,0.4)",
             }}
           />
           <span
             className="text-xs font-semibold uppercase tracking-wider"
             style={{
-              color: "#c0c0d8",
-              textShadow: "0 0 12px rgba(170,170,230,0.55), 0 0 4px rgba(139,92,246,0.35), 0 0 1px rgba(255,255,255,0.2)",
+              color: "#A3D9D9",
+              textShadow: "0 0 12px rgba(163,217,217,0.55), 0 0 4px rgba(195,63,69,0.35), 0 0 1px rgba(255,255,255,0.2)",
             }}
           >
             {title}

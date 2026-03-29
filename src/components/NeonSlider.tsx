@@ -7,7 +7,7 @@ interface Props {
   gradient?: string;
 }
 
-const defaultGradient = `linear-gradient(90deg, ${colors.accent}, #06b6d4, #22c55e, #eab308, #f472b6)`;
+const defaultGradient = `linear-gradient(90deg, ${colors.accent}, #3EDEF7, #A3D9D9, #D89F58, #E2B0A5)`;
 
 export function NeonSlider({ value, onChange, gradient }: Props) {
   const trackRef = useRef<HTMLDivElement>(null);
@@ -79,7 +79,7 @@ export function NeonSlider({ value, onChange, gradient }: Props) {
           right: 0,
           height: 3,
           borderRadius: 1.5,
-          background: "#1a1a2e",
+          background: "#162121",
         }}
       />
       <div
@@ -213,7 +213,7 @@ export function NeonRangeSlider({ low, high, onChangeLow, onChangeHigh, gradient
           right: 0,
           height: 3,
           borderRadius: 1.5,
-          background: "#1a1a2e",
+          background: "#162121",
         }}
       />
       {/* Filled range between thumbs */}

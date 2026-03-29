@@ -54,8 +54,8 @@ export function glowText(
   text: string,
   x: number,
   y: number,
-  color = "#9a9ab4",
-  glowColor = "rgba(170,170,230,0.6)"
+  color = "#84B0B0",
+  glowColor = "rgba(163,217,217,0.6)"
 ) {
   ctx.save();
   // Double-draw for stronger glow: wide soft + tight bright

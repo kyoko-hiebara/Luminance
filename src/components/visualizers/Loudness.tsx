@@ -218,7 +218,7 @@ export function Loudness({ width, height }: Props) {
     // TP label
     ctx.font = "bold 10px monospace";
     ctx.textAlign = "center";
-    glowText(ctx, "TP", tpCenterX, padding.top + 16, "#b0b0c8", "rgba(170,170,230,0.35)");
+    glowText(ctx, "TP", tpCenterX, padding.top + 16, "#A3D9D9", "rgba(163,217,217,0.35)");
 
     // TP value (large)
     const tpStr = truePeak <= -90 ? "-inf" : truePeak.toFixed(1);
@@ -292,7 +292,7 @@ export function Loudness({ width, height }: Props) {
     ctx.textAlign = "center";
     for (let b = 0; b < barCount; b++) {
       const barX = padding.left + b * barStep;
-      glowText(ctx, bars[b].label, barX + barWidth / 2, canvasHeight - padding.bottom + 12, "#b0b0c8", "rgba(170,170,230,0.35)");
+      glowText(ctx, bars[b].label, barX + barWidth / 2, canvasHeight - padding.bottom + 12, "#A3D9D9", "rgba(163,217,217,0.35)");
     }
     ctx.font = "7px monospace";
     glowText(ctx, "LUFS", width / 2, canvasHeight - 2);

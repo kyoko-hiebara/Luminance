@@ -89,7 +89,7 @@ export function Stereometer({ width, height }: Props) {
 
     // ─── Persistence: fade previous frame instead of clearing ─────────
     // Darken previous frame for trail effect
-    ctx.fillStyle = "rgba(28,28,46,0.18)";
+    ctx.fillStyle = "rgba(22,33,33,0.18)";
     ctx.fillRect(0, 0, width, height);
 
     // ─── Background gradient (subtle radial from center) ──────────────
@@ -193,9 +193,9 @@ export function Stereometer({ width, height }: Props) {
       // Waveform — rotated 90° (time flows top to bottom)
       const step = displayLen / scopeFullH;
       ctx.save();
-      ctx.shadowColor = "#06b6d4";
+      ctx.shadowColor = "#3EDEF7";
       ctx.shadowBlur = 3;
-      ctx.strokeStyle = "#06b6d4";
+      ctx.strokeStyle = "#3EDEF7";
       ctx.lineWidth = 1;
       ctx.beginPath();
       for (let py = 0; py < scopeFullH; py++) {
@@ -252,8 +252,8 @@ export function Stereometer({ width, height }: Props) {
 
       // Bright center glow
       const glowGrad = ctx.createRadialGradient(scopeCX, scopeCY, 0, scopeCX, scopeCY, scopeR * 0.5);
-      glowGrad.addColorStop(0, "rgba(34,197,94,0.06)");
-      glowGrad.addColorStop(1, "rgba(34,197,94,0)");
+      glowGrad.addColorStop(0, "rgba(163,217,217,0.06)");
+      glowGrad.addColorStop(1, "rgba(163,217,217,0)");
       ctx.fillStyle = glowGrad;
       ctx.fillRect(0, 0, width, scopeH);
     }

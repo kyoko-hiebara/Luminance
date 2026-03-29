@@ -74,7 +74,7 @@ export default function App() {
             style={{
               position: "absolute",
               inset: 0,
-              background: "rgba(139,92,246,0.12)",
+              background: "rgba(195,63,69,0.12)",
               border: `3px dashed ${colors.accent}`,
               borderRadius: 12,
               display: "flex",
@@ -92,7 +92,7 @@ export default function App() {
                 color: colors.accent,
                 textShadow: `0 0 20px ${colors.accent}88`,
                 padding: "16px 32px",
-                background: "rgba(28,28,46,0.9)",
+                background: "rgba(22,33,33,0.9)",
                 borderRadius: 8,
               }}
             >
