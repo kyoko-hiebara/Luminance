@@ -339,6 +339,8 @@ export function VJVisualizer({ width, height }: Props) {
   // Glitch state: 0=none, 1=RGB split (pre-text), 2=horizontal blur (8-bar)
   const glitchTypeRef = useRef(0);
   const glitchIntensityRef = useRef(0);
+  const flashRef = useRef(0);
+  const prevGlitchTypeRef = useRef(0);
   const transportRef = useRef<{ position_secs: number } | null>(null);
   const lastBarBlockRef = useRef(-1);
 
@@ -391,13 +393,24 @@ export function VJVisualizer({ width, height }: Props) {
 
       if (isPreTextBar && pos > 0.1) {
         glitchTypeRef.current = 1;
-        glitchIntensityRef.current = (barInBlock - 15); // 0→1 over 1 bar
+        glitchIntensityRef.current = (barInBlock - 15);
       } else if (isHBlurBar && pos > 0.1) {
         glitchTypeRef.current = 2;
-        glitchIntensityRef.current = (bar8Phase - 7); // 0→1 over 1 bar
+        glitchIntensityRef.current = (bar8Phase - 7);
       } else {
+        // Flash when horizontal blur just ended
+        if (prevGlitchTypeRef.current === 2 && glitchTypeRef.current !== 2) {
+          flashRef.current = 1.0;
+        }
         glitchTypeRef.current = 0;
         glitchIntensityRef.current = 0;
+      }
+      prevGlitchTypeRef.current = isPreTextBar ? 1 : isHBlurBar ? 2 : 0;
+
+      // Decay flash
+      if (flashRef.current > 0) {
+        flashRef.current *= 0.88;
+        if (flashRef.current < 0.01) flashRef.current = 0;
       }
 
       rafId = requestAnimationFrame(tick);
@@ -578,6 +591,15 @@ export function VJVisualizer({ width, height }: Props) {
         }
         ctx2.globalAlpha = 1;
       }
+    }
+
+    // ─── Flash (after horizontal blur ends) ─────────────────────────
+    const flash = flashRef.current;
+    if (flash > 0.01) {
+      ctx2.globalAlpha = flash * 0.85;
+      ctx2.fillStyle = "#f5e0d0";
+      ctx2.fillRect(0, 0, width, height);
+      ctx2.globalAlpha = 1;
     }
 
     // ─── Text overlay ────────────────────────────────────────────────
