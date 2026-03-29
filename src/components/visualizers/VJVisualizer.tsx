@@ -532,7 +532,7 @@ export function VJVisualizer({ width, height }: Props) {
     ctx2.letterSpacing = "0.05em";
 
     // Glow layers
-    ctx2.shadowColor = "rgba(195,63,69,0.6)";
+    ctx2.shadowColor = "rgba(237,121,83,0.6)";
     ctx2.shadowBlur = 20;
     ctx2.fillStyle = colors.textPrimary;
     ctx2.fillText(displayText, tx, ty);

@@ -5,11 +5,11 @@ export const colors = {
   grid: "#1A3567",
   textPrimary: "#EBEEFC",
   textDim: "#7F9EED",
-  accent: "#C33F45",
+  accent: "#ed7953",
   peakHold: "#E2B0A5",
   levelOk: "#A3D9D9",
   levelWarn: "#D89F58",
-  levelOver: "#95292D",
+  levelOver: "#cc4778",
 } as const;
 
 // Spectrum gradient stops (bottom to top / low to high dB)

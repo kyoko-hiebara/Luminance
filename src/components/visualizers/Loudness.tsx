@@ -222,7 +222,7 @@ export function Loudness({ width, height }: Props) {
 
     // TP value (large)
     const tpStr = truePeak <= -90 ? "-inf" : truePeak.toFixed(1);
-    const tpColor = truePeak > -1 ? colors.levelOver : truePeak > -3 ? colors.levelWarn : colors.textPrimary;
+    const tpColor = truePeak > -1 ? "#ed7953" : truePeak > -3 ? "#edc8b0" : colors.textPrimary;
     ctx.font = "bold 16px monospace";
     glowText(ctx, tpStr, tpCenterX, padding.top + plotH * 0.38, tpColor, `${tpColor}66`);
 
@@ -233,15 +233,15 @@ export function Loudness({ width, height }: Props) {
     // L/R individual values (more spacing from dBFS label)
     const tpLStr = truePeakL <= -90 ? "-inf" : truePeakL.toFixed(1);
     const tpRStr = truePeakR <= -90 ? "-inf" : truePeakR.toFixed(1);
-    const tpLColor = truePeakL > -1 ? colors.levelOver : truePeakL > -3 ? colors.levelWarn : colors.textDim;
-    const tpRColor = truePeakR > -1 ? colors.levelOver : truePeakR > -3 ? colors.levelWarn : colors.textDim;
+    const tpLColor = truePeakL > -1 ? "#ed7953" : truePeakL > -3 ? "#edc8b0" : colors.textDim;
+    const tpRColor = truePeakR > -1 ? "#ed7953" : truePeakR > -3 ? "#edc8b0" : colors.textDim;
     ctx.font = "10px monospace";
     glowText(ctx, `L ${tpLStr}`, tpCenterX, padding.top + plotH * 0.65, tpLColor, `${tpLColor}44`);
     glowText(ctx, `R ${tpRStr}`, tpCenterX, padding.top + plotH * 0.65 + 16, tpRColor, `${tpRColor}44`);
 
     // Clip indicator (flashes red when > -0.3 dBFS)
     if (truePeak > -0.3) {
-      ctx.fillStyle = colors.levelOver;
+      ctx.fillStyle = "#ed7953";
       ctx.globalAlpha = 0.8;
       ctx.beginPath();
       ctx.roundRect(tpX + 4, padding.top + plotH * 0.88, tpPanelW - 8, 20, 3);

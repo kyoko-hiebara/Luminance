@@ -29,7 +29,7 @@ export function Panel({ title, hideTitle, children }: Props) {
     <div
       data-panel
       className="flex flex-col h-full rounded-lg border border-border-panel bg-bg-panel overflow-hidden"
-      style={{ boxShadow: "0 0 16px rgba(195,63,69,0.06), 0 2px 6px rgba(0,0,0,0.4)" }}
+      style={{ boxShadow: "0 0 16px rgba(237,121,83,0.06), 0 2px 6px rgba(0,0,0,0.4)" }}
     >
       {!hideTitle && (
         <div
@@ -40,15 +40,15 @@ export function Panel({ title, hideTitle, children }: Props) {
           <span
             className="inline-block w-1.5 h-1.5 rounded-full mr-2 flex-shrink-0"
             style={{
-              backgroundColor: "rgba(195,63,69,0.6)",
-              boxShadow: "0 0 4px rgba(195,63,69,0.4)",
+              backgroundColor: "rgba(237,121,83,0.6)",
+              boxShadow: "0 0 4px rgba(237,121,83,0.4)",
             }}
           />
           <span
             className="text-xs font-semibold uppercase tracking-wider"
             style={{
               color: "#B7C5F4",
-              textShadow: "0 0 12px rgba(127,158,237,0.55), 0 0 4px rgba(195,63,69,0.35), 0 0 1px rgba(255,255,255,0.2)",
+              textShadow: "0 0 12px rgba(127,158,237,0.55), 0 0 4px rgba(237,121,83,0.35), 0 0 1px rgba(255,255,255,0.2)",
             }}
           >
             {title}

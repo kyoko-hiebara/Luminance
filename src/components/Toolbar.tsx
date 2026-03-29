@@ -215,7 +215,7 @@ export function Toolbar({ onRegisterDropHandler }: ToolbarProps) {
     >
       <span
         className="text-sm font-bold text-accent tracking-wide"
-        style={{ textShadow: "0 0 10px rgba(195,63,69,0.5)" }}
+        style={{ textShadow: "0 0 10px rgba(237,121,83,0.5)" }}
       >
         LUMINANCE
       </span>
@@ -417,7 +417,7 @@ export function Toolbar({ onRegisterDropHandler }: ToolbarProps) {
           <button
             onClick={stopAudio}
             className="px-3 py-1 text-xs rounded text-level-over hover:bg-level-over/30 transition-colors"
-            style={{ border: "1px solid rgba(149,41,45,0.3)", backgroundColor: "rgba(149,41,45,0.1)" }}
+            style={{ border: "1px solid rgba(204,71,120,0.3)", backgroundColor: "rgba(204,71,120,0.1)" }}
           >
             Stop
           </button>

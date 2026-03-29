@@ -115,7 +115,7 @@ function captureLayout(compositeCanvas: HTMLCanvasElement): string | null {
     ctx.fillRect(tx, ty, tbRect.width, tbRect.height);
 
     // Accent dot
-    ctx.fillStyle = "rgba(195,63,69,0.6)";
+    ctx.fillStyle = "rgba(237,121,83,0.6)";
     ctx.beginPath();
     ctx.arc(tx + 14, ty + tbRect.height / 2, 2.5, 0, Math.PI * 2);
     ctx.fill();

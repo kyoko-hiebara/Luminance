@@ -7,11 +7,11 @@
   --color-grid: #1A3567;
   --color-text-primary: #EBEEFC;
   --color-text-dim: #7F9EED;
-  --color-accent: #C33F45;
+  --color-accent: #ed7953;
   --color-peak-hold: #E2B0A5;
   --color-level-ok: #A3D9D9;
   --color-level-warn: #D89F58;
-  --color-level-over: #95292D;
+  --color-level-over: #cc4778;
 }
 
 html, body, #root {
