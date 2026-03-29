@@ -216,13 +216,14 @@ export function Spectrum({ width, height }: Props) {
 
     // --- 1. Rainbow fill (fixed brightness, like spectrogram) ---
     const gc = baseGradCache.current;
-    if (gc.w !== plotW) {
-      const g = ctx.createLinearGradient(padding.left, 0, padding.left + plotW, 0);
-      const N = 48;
-      for (let i = 0; i <= N; i++) {
-        const t = i / N;
-        g.addColorStop(t, hsl(posToHue(t), 95, 55, 0.65));
-      }
+    if (gc.w !== plotW || gc.fill === null) {
+      // Vertical gradient: dark bottom → warm cream top (matching line color)
+      const g = ctx.createLinearGradient(0, padding.top + plotH, 0, padding.top);
+      g.addColorStop(0, "rgba(91,2,163,0.15)");    // #5b02a3 purple (quiet base)
+      g.addColorStop(0.3, "rgba(204,71,120,0.3)");  // #cc4778 pink
+      g.addColorStop(0.6, "rgba(237,121,83,0.45)");  // #ed7953 orange
+      g.addColorStop(0.85, "rgba(237,200,176,0.55)"); // #edc8b0 warm cream
+      g.addColorStop(1, "rgba(245,224,208,0.65)");    // #f5e0d0 light cream
       gc.fill = g;
       gc.w = plotW;
     }

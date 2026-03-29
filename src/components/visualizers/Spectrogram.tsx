@@ -23,17 +23,17 @@ function dbToColor(db: number): [number, number, number] {
   // Apply a slight gamma curve to brighten mid-levels
   const tAdjusted = Math.pow(t, 0.85);
 
-  // Plasma → warm cream (matching Oscilloscope line color at peak)
+  // Warm cream colormap (purple → pink → orange → cream → white)
   const stops: Array<{ pos: number; r: number; g: number; b: number }> = [
-    { pos: 0.0,  r: 0x0d, g: 0x08, b: 0x87 },  // #0d0887 deep purple (silence)
-    { pos: 0.15, r: 0x41, g: 0x04, b: 0x9d },  // #41049d purple
-    { pos: 0.28, r: 0x7e, g: 0x03, b: 0xa5 },  // #7e03a5 violet
-    { pos: 0.40, r: 0x9c, g: 0x17, b: 0x9e },  // #9c179e magenta
-    { pos: 0.52, r: 0xcc, g: 0x47, b: 0x78 },  // #cc4778 pink
-    { pos: 0.64, r: 0xed, g: 0x79, b: 0x53 },  // #ed7953 orange
-    { pos: 0.76, r: 0xfb, g: 0xb6, b: 0x1a },  // #fbb61a gold
-    { pos: 0.88, r: 0xed, g: 0xc8, b: 0xb0 },  // #edc8b0 warm cream
-    { pos: 1.0,  r: 0xf5, g: 0xe0, b: 0xd0 },  // #f5e0d0 light cream-white
+    { pos: 0.0,  r: 0x09, g: 0x18, b: 0x34 },  // #091834 bg (silence)
+    { pos: 0.12, r: 0x5b, g: 0x02, b: 0xa3 },  // #5b02a3 purple
+    { pos: 0.25, r: 0x9c, g: 0x17, b: 0x9e },  // #9c179e magenta
+    { pos: 0.38, r: 0xcc, g: 0x47, b: 0x78 },  // #cc4778 pink
+    { pos: 0.5,  r: 0xed, g: 0x79, b: 0x53 },  // #ed7953 orange
+    { pos: 0.62, r: 0xfb, g: 0xb6, b: 0x1a },  // #fbb61a gold
+    { pos: 0.75, r: 0xed, g: 0xc8, b: 0xb0 },  // #edc8b0 warm cream
+    { pos: 0.88, r: 0xf5, g: 0xe0, b: 0xd0 },  // #f5e0d0 light cream
+    { pos: 1.0,  r: 0xfa, g: 0xf0, b: 0xe8 },  // #faf0e8 near-white cream
   ];
 
   // Find surrounding stops
