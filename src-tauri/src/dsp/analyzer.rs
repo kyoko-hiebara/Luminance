@@ -163,94 +163,174 @@ pub fn analyze(interleaved: &[f32], channels: u16, sample_rate: u32) -> FileAnal
     }
 }
 
-/// Detect BPM and first-beat offset via onset strength autocorrelation.
+/// Detect BPM and first-beat offset.
+/// Uses bass-band energy onsets + autocorrelation + octave correction + template offset.
 fn detect_bpm_and_offset(interleaved: &[f32], channels: usize, sample_rate: u32) -> (f32, f64) {
     let sr = sample_rate as usize;
-    let total_frames = interleaved.len() / channels.max(1);
+    let ch = channels.max(1);
+    let total_frames = interleaved.len() / ch;
 
-    // Step 1: Compute onset strength envelope (~100 Hz rate)
     let hop = sr / 100; // ~10ms hops = 100 onset values per second
     let onset_len = total_frames / hop;
-    if onset_len < 200 {
-        return (0.0, 0.0); // too short to detect
+    if onset_len < 300 {
+        return (0.0, 0.0);
     }
 
+    // Step 1: Bass-band energy onset envelope (1-pole low-pass at ~200Hz for kick focus)
+    let alpha = 1.0 - (-2.0 * std::f64::consts::PI * 200.0 / sr as f64).exp();
     let mut onset_env = Vec::with_capacity(onset_len);
     let mut prev_energy = 0.0_f64;
 
     for i in 0..onset_len {
         let start = i * hop;
         let end = ((i + 1) * hop).min(total_frames);
-        let mut energy = 0.0_f64;
+        let mut lp_state = 0.0_f64;
+        let mut bass_energy = 0.0_f64;
         for f in start..end {
-            let offset = f * channels;
-            let mono = if channels >= 2 {
-                (interleaved[offset] + interleaved[offset + 1]) as f64 * 0.5
+            let offset = f * ch;
+            let mono = if ch >= 2 {
+                (interleaved[offset] as f64 + interleaved[offset + 1] as f64) * 0.5
             } else {
                 interleaved[offset] as f64
             };
-            energy += mono * mono;
+            // Apply low-pass filter (bass extraction)
+            lp_state += alpha * (mono - lp_state);
+            bass_energy += lp_state * lp_state;
         }
-        energy /= (end - start) as f64;
+        bass_energy /= (end - start).max(1) as f64;
 
-        // Half-wave rectified difference (onset = energy increase)
-        let onset = (energy - prev_energy).max(0.0);
+        // Also compute full-band energy for onset detection
+        let mut full_energy = 0.0_f64;
+        for f in start..end {
+            let offset = f * ch;
+            let mono = if ch >= 2 {
+                (interleaved[offset] as f64 + interleaved[offset + 1] as f64) * 0.5
+            } else {
+                interleaved[offset] as f64
+            };
+            full_energy += mono * mono;
+        }
+        full_energy /= (end - start).max(1) as f64;
+
+        // Combined onset: weighted bass (70%) + full (30%)
+        let combined = bass_energy * 0.7 + full_energy * 0.3;
+        let onset = (combined - prev_energy).max(0.0);
         onset_env.push(onset as f32);
-        prev_energy = energy;
+        prev_energy = combined;
     }
 
-    // Step 2: Autocorrelation over BPM range 60-200
-    let onset_rate = 100.0; // onsets per second
-    let min_lag = (onset_rate * 60.0 / 200.0) as usize; // lag for 200 BPM
-    let max_lag = (onset_rate * 60.0 / 60.0) as usize;  // lag for 60 BPM
-    let max_lag = max_lag.min(onset_env.len() / 2);
+    // Step 2: Autocorrelation with harmonic weighting
+    let onset_rate = 100.0_f64;
+    let min_lag = (onset_rate * 60.0 / 200.0) as usize;
+    let max_lag = ((onset_rate * 60.0 / 60.0) as usize).min(onset_env.len() / 2);
 
     if min_lag >= max_lag {
         return (0.0, 0.0);
     }
 
-    let mut best_lag = min_lag;
-    let mut best_corr = 0.0_f64;
-
-    // Use first 30 seconds max for autocorrelation
-    let ac_len = onset_env.len().min(3000);
+    let ac_len = onset_env.len().min(4000); // up to 40 seconds
+    let mut corr_values = vec![0.0_f64; max_lag + 1];
 
     for lag in min_lag..=max_lag {
-        let mut corr = 0.0_f64;
         let n = ac_len - lag;
+        let mut corr = 0.0_f64;
         for i in 0..n {
             corr += onset_env[i] as f64 * onset_env[i + lag] as f64;
         }
-        corr /= n as f64;
+        corr_values[lag] = corr / n as f64;
+    }
 
-        if corr > best_corr {
-            best_corr = corr;
+    // Find top 5 peaks
+    let mut peaks: Vec<(usize, f64)> = Vec::new();
+    for lag in (min_lag + 1)..max_lag {
+        if corr_values[lag] > corr_values[lag - 1] && corr_values[lag] > corr_values[lag + 1] {
+            peaks.push((lag, corr_values[lag]));
+        }
+    }
+    peaks.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+    peaks.truncate(5);
+
+    if peaks.is_empty() {
+        return (0.0, 0.0);
+    }
+
+    // Step 3: Score peaks with harmonic/sub-harmonic reinforcement
+    let mut best_lag = peaks[0].0;
+    let mut best_score = 0.0_f64;
+
+    for &(lag, corr) in &peaks {
+        let mut score = corr;
+
+        // Check for sub-harmonic reinforcement (2x lag = half BPM)
+        let sub_lag = lag * 2;
+        if sub_lag <= max_lag {
+            score += corr_values[sub_lag] * 0.5;
+        }
+
+        // Check for harmonic reinforcement (lag/2 = double BPM)
+        let harm_lag = lag / 2;
+        if harm_lag >= min_lag {
+            score += corr_values[harm_lag] * 0.3;
+        }
+
+        // Prefer EDM-friendly tempo range (110-160 BPM)
+        let bpm = onset_rate * 60.0 / lag as f64;
+        if bpm >= 110.0 && bpm <= 160.0 {
+            score *= 1.3;
+        } else if bpm >= 85.0 && bpm <= 180.0 {
+            score *= 1.1;
+        }
+
+        if score > best_score {
+            best_score = score;
             best_lag = lag;
         }
     }
 
-    let detected_bpm = if best_corr > 0.0 {
-        (onset_rate * 60.0 / best_lag as f64) as f32
-    } else {
-        0.0
-    };
+    let mut detected_bpm = onset_rate * 60.0 / best_lag as f64;
 
-    // Round to nearest 0.5 BPM
-    let detected_bpm = (detected_bpm * 2.0).round() / 2.0;
+    // Step 4: Octave correction — bring into 85-175 BPM range
+    while detected_bpm < 85.0 && detected_bpm > 0.0 {
+        detected_bpm *= 2.0;
+    }
+    while detected_bpm > 175.0 {
+        detected_bpm /= 2.0;
+    }
 
-    // Step 3: Find first significant onset (beat offset)
-    let mean_onset: f32 = onset_env.iter().sum::<f32>() / onset_env.len() as f32;
-    let threshold = mean_onset * 3.0; // first onset significantly above average
+    let detected_bpm = (detected_bpm * 2.0).round() / 2.0; // round to 0.5
 
-    let mut beat_offset_secs = 0.0_f64;
-    for (i, &val) in onset_env.iter().enumerate() {
-        if val > threshold {
-            beat_offset_secs = i as f64 / onset_rate;
-            break;
+    // Step 5: Beat offset via template correlation
+    // Create a beat template at the detected BPM and find best phase alignment
+    let beat_period = onset_rate * 60.0 / detected_bpm as f64;
+    let search_len = (beat_period * 2.0) as usize; // search within first 2 beats
+    let search_len = search_len.min(onset_env.len());
+
+    let mut best_offset = 0;
+    let mut best_template_corr = 0.0_f64;
+
+    for offset in 0..search_len {
+        let mut corr = 0.0_f64;
+        let mut count = 0;
+        // Sum onset values at expected beat positions
+        let mut pos = offset as f64;
+        while (pos as usize) < onset_env.len().min(5000) {
+            let idx = pos as usize;
+            corr += onset_env[idx] as f64;
+            count += 1;
+            pos += beat_period;
+        }
+        if count > 0 {
+            corr /= count as f64;
+        }
+        if corr > best_template_corr {
+            best_template_corr = corr;
+            best_offset = offset;
         }
     }
 
-    (detected_bpm, beat_offset_secs)
+    let beat_offset_secs = best_offset as f64 / onset_rate;
+
+    (detected_bpm as f32, beat_offset_secs)
 }
 
 #[cfg(test)]
