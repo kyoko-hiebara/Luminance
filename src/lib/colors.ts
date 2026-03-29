@@ -13,13 +13,15 @@ export const colors = {
 } as const;
 
 // Spectrum gradient stops (bottom to top / low to high dB)
+// Plasma colormap (matplotlib)
 export const spectrumGradientStops = [
-  { offset: 0.0, color: "#1A3567" },
-  { offset: 0.2, color: "#176571" },
-  { offset: 0.4, color: "#A3D9D9" },
-  { offset: 0.6, color: "#D89F58" },
-  { offset: 0.8, color: "#C33F45" },
-  { offset: 1.0, color: "#95292D" },
+  { offset: 0.0, color: "#0d0887" },
+  { offset: 0.17, color: "#5b02a3" },
+  { offset: 0.33, color: "#9c179e" },
+  { offset: 0.5, color: "#cc4778" },
+  { offset: 0.67, color: "#ed7953" },
+  { offset: 0.83, color: "#fbb61a" },
+  { offset: 1.0, color: "#f0f921" },
 ] as const;
 
 export function createSpectrumGradient(

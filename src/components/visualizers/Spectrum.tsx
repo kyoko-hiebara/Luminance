@@ -34,21 +34,25 @@ function hsl(h: number, s: number, l: number, a: number): string {
   return `hsla(${h},${s}%,${l}%,${a})`;
 }
 
-/** Smooth hue from frequency position — continuous interpolation through palette */
+/** Plasma colormap: frequency position → hue
+ *  Purple(270) → Magenta(310) → Pink(340) → Orange(20) → Yellow(55) */
 function posToHue(normX: number): number {
-  // Navy(220) → Teal(180) → Gold(35) → Rose(15) → Red(0) → Purple(290)
   const stops = [
-    [0, 220], [0.2, 180], [0.4, 35], [0.6, 15],
-    [0.8, 0], [1.0, 290],
+    [0, 270], [0.2, 290], [0.4, 320],
+    [0.6, 345], [0.8, 20], [1.0, 55],
   ];
   const t = Math.max(0, Math.min(1, normX));
   for (let i = 0; i < stops.length - 1; i++) {
     if (t <= stops[i + 1][0]) {
       const f = (t - stops[i][0]) / (stops[i + 1][0] - stops[i][0]);
-      return stops[i][1] + (stops[i + 1][1] - stops[i][1]) * f;
+      let h0 = stops[i][1], h1 = stops[i + 1][1];
+      // Handle hue wrap (e.g., 345 → 20 should go through 360/0)
+      if (h1 < h0 - 180) h1 += 360;
+      if (h0 < h1 - 180) h0 += 360;
+      return ((h0 + (h1 - h0) * f) + 360) % 360;
     }
   }
-  return 290;
+  return 55;
 }
 
 function freqToHue(freq: number): number {

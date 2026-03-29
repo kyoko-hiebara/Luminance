@@ -23,15 +23,17 @@ function dbToColor(db: number): [number, number, number] {
   // Apply a slight gamma curve to brighten mid-levels
   const tAdjusted = Math.pow(t, 0.85);
 
+  // Plasma colormap (matplotlib)
   const stops: Array<{ pos: number; r: number; g: number; b: number }> = [
-    { pos: 0.0,  r: 0x09, g: 0x18, b: 0x34 },  // #091834 navy darkest (silence)
-    { pos: 0.15, r: 0x1A, g: 0x35, b: 0x67 },  // #1A3567 navy (very quiet)
-    { pos: 0.28, r: 0x17, g: 0x65, b: 0x71 },  // #176571 dark teal (quiet)
-    { pos: 0.42, r: 0xA3, g: 0xD9, b: 0xD9 },  // #A3D9D9 teal (low-mid)
-    { pos: 0.56, r: 0xD8, g: 0x9F, b: 0x58 },  // #D89F58 gold (mid)
-    { pos: 0.72, r: 0xC3, g: 0x3F, b: 0x45 },  // #C33F45 red (loud)
-    { pos: 0.86, r: 0xE2, g: 0xB0, b: 0xA5 },  // #E2B0A5 rose light (very loud)
-    { pos: 1.0,  r: 0xEB, g: 0xEE, b: 0xFC },  // #EBEEFC near-white (max)
+    { pos: 0.0,  r: 0x0d, g: 0x08, b: 0x87 },  // #0d0887 deep purple (silence)
+    { pos: 0.15, r: 0x41, g: 0x04, b: 0x9d },  // #41049d purple
+    { pos: 0.3,  r: 0x7e, g: 0x03, b: 0xa5 },  // #7e03a5 violet
+    { pos: 0.42, r: 0x9c, g: 0x17, b: 0x9e },  // #9c179e magenta
+    { pos: 0.55, r: 0xcc, g: 0x47, b: 0x78 },  // #cc4778 pink
+    { pos: 0.67, r: 0xed, g: 0x79, b: 0x53 },  // #ed7953 orange
+    { pos: 0.8,  r: 0xfb, g: 0xb6, b: 0x1a },  // #fbb61a gold
+    { pos: 0.92, r: 0xf0, g: 0xf9, b: 0x21 },  // #f0f921 yellow
+    { pos: 1.0,  r: 0xfc, g: 0xff, b: 0xa6 },  // #fcffa6 bright yellow-white
   ];
 
   // Find surrounding stops
