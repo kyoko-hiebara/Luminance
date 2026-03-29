@@ -300,45 +300,50 @@ export function RenderDialog({ audioPath, onClose }: Props) {
       }
     };
 
-    // Capture every rAF tick, wallclock timestamps handle timing.
-    // FFmpeg: -use_wallclock_as_timestamps 1 + -r 30 -vsync cfr
-    // → frames arrive at real-time rate, FFmpeg resamples to constant 30fps
-    let lastCheckTime = performance.now();
+    // Synchronous capture with wallclock timestamps.
+    // Each frame: capture → await submit → next frame.
+    // Wallclock ensures correct timing, CFR 30fps fills gaps via duplication.
+    // +2 bars of trailing capture after music ends.
+    const bpmVal = 128; // fallback
+    const barSec = (60 / bpmVal) * 4;
+    const trailingMs = barSec * 2 * 1000; // 2 bars in ms
+    let musicEndedAt = 0;
 
-    const captureLoop = () => {
-      if (!renderingRef.current) return;
-      const now = performance.now();
-
-      // End check every 500ms
-      if (now - lastCheckTime > 500) {
-        lastCheckTime = now;
+    const run = async () => {
+      while (renderingRef.current) {
+        // End check: music finished + 2 bars of trailing
         if (knownDuration > 0 && lastPosition >= knownDuration - 0.15) {
-          finishRecording(); return;
+          if (musicEndedAt === 0) musicEndedAt = performance.now();
+          if (performance.now() - musicEndedAt > trailingMs) {
+            await finishRecording(); return;
+          }
         }
         if (lastPosition > 0 && Math.abs(lastPosition - lastCheckPos) < 0.01) {
           staleCount++;
-          if (staleCount >= 6) { finishRecording(); return; }
+          // Only stale-stop if music hasn't been detected as ended
+          if (staleCount >= 180 && musicEndedAt === 0) { await finishRecording(); return; }
         } else { staleCount = 0; }
         lastCheckPos = lastPosition;
-      }
 
-      // Capture & submit (fire-and-forget, background writer handles pipe)
-      const composite = compositeRef.current;
-      if (composite) {
-        const base64 = captureLayout(composite);
-        if (base64) {
-          frames++;
-          if (frames % 15 === 0) setFrameCount(frames);
-          invoke("submit_frame", { frameData: base64 }).catch(() => {});
+        // Capture & submit one frame (synchronous — correct wallclock order)
+        const composite = compositeRef.current;
+        if (composite) {
+          const base64 = captureLayout(composite);
+          if (base64) {
+            frames++;
+            if (frames % 10 === 0) setFrameCount(frames);
+            try {
+              await invoke("submit_frame", { frameData: base64 });
+            } catch { break; }
+          }
         }
-      }
 
-      if (renderingRef.current) {
-        requestAnimationFrame(captureLoop);
+        // Yield to let visualizers render (one rAF tick)
+        await new Promise((r) => requestAnimationFrame(r));
       }
     };
 
-    requestAnimationFrame(captureLoop);
+    run();
   }, [audioPath]);
 
   const handleCancel = useCallback(async () => {
