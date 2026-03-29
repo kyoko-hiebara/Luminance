@@ -128,6 +128,81 @@ function captureLayout(compositeCanvas: HTMLCanvasElement): string | null {
     ctx.fillText(title.toUpperCase(), tx + 24, ty + tbRect.height / 2);
   }
 
+  // Draw control bars (buttons, sliders, text at bottom of panels)
+  const controlBars = layout.querySelectorAll("[data-control-bar]");
+  for (const cb of controlBars) {
+    const cbEl = cb as HTMLElement;
+    const cbRect = cbEl.getBoundingClientRect();
+    const cx = cbRect.left - rect.left;
+    const cy = cbRect.top - rect.top;
+    const cw = cbRect.width;
+    const ch = cbRect.height;
+
+    // Background
+    ctx.fillStyle = colors.bgPanel;
+    ctx.fillRect(cx, cy, cw, ch);
+    ctx.strokeStyle = colors.borderPanel;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(cx + cw, cy);
+    ctx.stroke();
+
+    // Render child elements (buttons, spans, inputs)
+    const children = cbEl.querySelectorAll("button, span, input");
+    for (const child of children) {
+      const childEl = child as HTMLElement;
+      const childRect = childEl.getBoundingClientRect();
+      const childX = childRect.left - rect.left;
+      const childY = childRect.top - rect.top;
+      const childW = childRect.width;
+      const childH = childRect.height;
+
+      if (childW <= 0 || childH <= 0) continue;
+
+      // Draw button/input backgrounds
+      if (child.tagName === "BUTTON" || child.tagName === "INPUT") {
+        const bg = getComputedStyle(childEl).backgroundColor;
+        if (bg && bg !== "rgba(0, 0, 0, 0)") {
+          ctx.fillStyle = bg;
+          ctx.beginPath();
+          ctx.roundRect(childX, childY, childW, childH, 3);
+          ctx.fill();
+        }
+        const border = getComputedStyle(childEl).borderColor;
+        if (border && border !== "rgba(0, 0, 0, 0)") {
+          ctx.strokeStyle = border;
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.roundRect(childX, childY, childW, childH, 3);
+          ctx.stroke();
+        }
+      }
+
+      // Draw text content
+      const text = childEl.textContent?.trim();
+      if (text) {
+        const style = getComputedStyle(childEl);
+        const fontSize = parseFloat(style.fontSize) || 9;
+        ctx.font = `${style.fontWeight || "normal"} ${fontSize}px monospace`;
+        ctx.fillStyle = style.color || colors.textDim;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(text, childX + childW / 2, childY + childH / 2);
+      }
+    }
+
+    // Draw slider tracks (NeonSlider divs)
+    const sliderTracks = cbEl.querySelectorAll("[style*='position: relative']");
+    for (const track of sliderTracks) {
+      const trackRect = (track as HTMLElement).getBoundingClientRect();
+      const tx = trackRect.left - rect.left;
+      const ty = trackRect.top - rect.top + trackRect.height / 2 - 1.5;
+      ctx.fillStyle = colors.grid;
+      ctx.fillRect(tx, ty, trackRect.width, 3);
+    }
+  }
+
   const dataUrl = compositeCanvas.toDataURL("image/jpeg", 0.92);
   return dataUrl.split(",")[1];
 }

@@ -240,7 +240,7 @@ export function Oscilloscope({ width, height }: Props) {
     <div className="flex flex-col" style={{ height: "100%" }}>
       <canvas ref={canvasRef} style={{ flex: 1, minHeight: 0 }} />
       <div
-        className="flex items-center gap-2 px-2"
+        data-control-bar className="flex items-center gap-2 px-2"
         style={{
           height: controlH,
           background: colors.bgPanel,
