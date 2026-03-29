@@ -60,6 +60,10 @@ export function Stereometer({ width, height }: Props) {
   const dataRef = useRef<AudioData["stereo"] | null>(null);
   const levelsRef = useRef<AudioData["levels"] | null>(null);
   const smoothCorrRef = useRef(0);
+  // Waterfall history for L/R levels (each row = one frame's dB value)
+  const waterfallW = 12; // width of each side strip in pixels
+  const waterfallLRef = useRef<HTMLCanvasElement | null>(null);
+  const waterfallRRef = useRef<HTMLCanvasElement | null>(null);
 
   useAudioData("audio-data", (payload) => {
     dataRef.current = payload.stereo;
@@ -143,63 +147,58 @@ export function Stereometer({ width, height }: Props) {
     glowText(ctx, "R", scopeCX + scopeR * 0.72 + 10, scopeCY - scopeR * 0.72 - 6);
     ctx.textBaseline = "alphabetic";
 
-    // ─── Side L/R level bars (fill the margins on both sides) ─────────
+    // ─── Side L/R waterfall strips ──────────────────────────────────────
     const levels = levelsRef.current;
-    const barMargin = 4;
-    const lBarX = barMargin;
-    const rBarX = width - barMargin - 5;
-    const sideBarW = 5;
-    const barTop = 6;
-    const barBot = scopeH - 6;
-    const barFullH = barBot - barTop;
-
-    // dB to 0..1
     const dbNorm = (db: number) => Math.max(0, Math.min(1, (Math.max(-60, db) + 60) / 60));
-
     const rmsL = dbNorm(levels?.rms_l ?? -90);
     const rmsR = dbNorm(levels?.rms_r ?? -90);
-    const peakL = dbNorm(levels?.peak_l ?? -90);
-    const peakR = dbNorm(levels?.peak_r ?? -90);
 
-    // Rainbow gradient for bars: red(bottom) → yellow → green → cyan → blue → purple(top)
-    const rainbowGrad = ctx.createLinearGradient(0, barBot, 0, barTop);
-    rainbowGrad.addColorStop(0.0, "hsl(0,90%,55%)");     // red
-    rainbowGrad.addColorStop(0.2, "hsl(40,90%,55%)");    // orange
-    rainbowGrad.addColorStop(0.35, "hsl(60,90%,55%)");   // yellow
-    rainbowGrad.addColorStop(0.5, "hsl(120,85%,50%)");   // green
-    rainbowGrad.addColorStop(0.65, "hsl(180,85%,50%)");  // cyan
-    rainbowGrad.addColorStop(0.8, "hsl(240,80%,60%)");   // blue
-    rainbowGrad.addColorStop(1.0, "hsl(280,80%,55%)");   // purple
-
-    const drawSideBar = (x: number, rmsN: number, _peakN: number) => {
-
-      const levelH = rmsN * barFullH;
-
-      // Rainbow glow dots — radial gradient per dot (perfectly smooth falloff)
-      const cx = x + sideBarW / 2;
-      const dots = 24;
-      const glowR = 8 + rmsN * 12;
-      for (let g = 0; g < dots; g++) {
-        const t = dots > 1 ? g / (dots - 1) : 0;
-        const hue = t * 280;
-        const dy = barBot - t * levelH;
-        const a = 0.08 + rmsN * 0.14;
-        const grad = ctx.createRadialGradient(cx, dy, 0, cx, dy, glowR);
-        grad.addColorStop(0, `hsla(${hue},80%,60%,${a})`);
-        grad.addColorStop(0.5, `hsla(${hue},80%,55%,${a * 0.4})`);
-        grad.addColorStop(1, `hsla(${hue},80%,50%,0)`);
-        ctx.fillStyle = grad;
-        ctx.fillRect(cx - glowR, dy - glowR, glowR * 2, glowR * 2);
-      }
+    // dB → color (spectrogram style)
+    const dbToRgb = (norm: number): [number, number, number] => {
+      // black → purple → blue → cyan → green → yellow → red → white
+      const t = norm;
+      if (t < 0.15) return [Math.round(t/0.15*40), 0, Math.round(t/0.15*60)];
+      if (t < 0.3) { const s=(t-0.15)/0.15; return [40-Math.round(s*40), 0, 60+Math.round(s*195)]; }
+      if (t < 0.45) { const s=(t-0.3)/0.15; return [0, Math.round(s*200), 255-Math.round(s*55)]; }
+      if (t < 0.6) { const s=(t-0.45)/0.15; return [0, 200+Math.round(s*55), 200-Math.round(s*200)]; }
+      if (t < 0.75) { const s=(t-0.6)/0.15; return [Math.round(s*255), 255, 0]; }
+      if (t < 0.9) { const s=(t-0.75)/0.15; return [255, 255-Math.round(s*155), 0]; }
+      { const s=(t-0.9)/0.1; return [255, 100+Math.round(s*155), Math.round(s*255)]; }
     };
 
-    drawSideBar(lBarX, rmsL, peakL);
-    drawSideBar(rBarX, rmsR, peakR);
+    const drawWaterfall = (wfRef: React.MutableRefObject<HTMLCanvasElement | null>, x: number, norm: number) => {
+      const wfH = scopeH;
+      // Lazy init offscreen canvas for waterfall history
+      let wf = wfRef.current;
+      if (!wf || wf.width !== waterfallW || wf.height !== wfH) {
+        wf = document.createElement("canvas");
+        wf.width = waterfallW;
+        wf.height = Math.max(1, wfH);
+        wfRef.current = wf;
+      }
+      const wfCtx = wf.getContext("2d");
+      if (!wfCtx) return;
 
+      // Scroll down: copy existing image 1px down
+      wfCtx.drawImage(wf, 0, 0, waterfallW, wfH, 0, 1, waterfallW, wfH);
+
+      // Draw new row at top
+      const [r, g, b] = dbToRgb(norm);
+      wfCtx.fillStyle = `rgb(${r},${g},${b})`;
+      wfCtx.fillRect(0, 0, waterfallW, 1);
+
+      // Draw waterfall onto main canvas
+      ctx.drawImage(wf, x, 0, waterfallW, wfH);
+    };
+
+    drawWaterfall(waterfallLRef, 0, rmsL);
+    drawWaterfall(waterfallRRef, width - waterfallW, rmsR);
+
+    // Labels
     ctx.font = "6px monospace";
     ctx.textAlign = "center";
-    glowText(ctx, "L", lBarX + sideBarW / 2, barBot + 9);
-    glowText(ctx, "R", rBarX + sideBarW / 2, barBot + 9);
+    glowText(ctx, "L", waterfallW / 2, scopeH - 3);
+    glowText(ctx, "R", width - waterfallW / 2, scopeH - 3);
 
     // ─── Lissajous dots (fill the whole scope area) ───────────────────
     const stereo = dataRef.current;
