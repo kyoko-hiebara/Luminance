@@ -15,15 +15,15 @@ const CORR_SEGMENTS = 24;
 
 function corrSegmentColor(i: number): string {
   const t = i / (CORR_SEGMENTS - 1);
-  if (t < 0.35) return colors.levelOver;
-  if (t < 0.65) return colors.levelWarn;
-  return colors.levelOk;
+  if (t < 0.35) return "#ed7953";  // warm orange (out of phase)
+  if (t < 0.65) return "#edc8b0"; // warm cream (center)
+  return "#cc4778";               // pink (correlated)
 }
 
 function corrValueColor(corr: number): string {
-  if (corr < -0.3) return colors.levelOver;
-  if (corr < 0.3) return colors.levelWarn;
-  return colors.levelOk;
+  if (corr < -0.3) return "#ed7953";
+  if (corr < 0.3) return "#edc8b0";
+  return "#cc4778";
 }
 
 function drawBubble(

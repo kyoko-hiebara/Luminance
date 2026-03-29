@@ -24,16 +24,16 @@ function lufsToNorm(lufs: number, floor: number, ceil: number): number {
 }
 
 function lufsColor(lufs: number): string {
-  if (lufs > REFERENCE_LUFS) return colors.levelOver;
-  if (lufs > -18) return colors.levelWarn;
-  return colors.levelOk;
+  if (lufs > REFERENCE_LUFS) return "#ed7953"; // warm orange (over)
+  if (lufs > -18) return "#edc8b0"; // warm cream (warn)
+  return "#cc4778"; // pink (ok)
 }
 
 function segmentLufsColor(i: number, floor: number, ceil: number): string {
   const lufs = floor + (i / SEGMENT_COUNT) * (ceil - floor);
-  if (lufs > REFERENCE_LUFS) return colors.levelOver;
-  if (lufs > -18) return colors.levelWarn;
-  return colors.levelOk;
+  if (lufs > REFERENCE_LUFS) return "#ed7953";
+  if (lufs > -18) return "#edc8b0";
+  return "#cc4778";
 }
 
 function formatLufs(lufs: number, floor: number): string {
@@ -328,7 +328,7 @@ export function Loudness({ width, height }: Props) {
           high={lufsToSlider(lufsCeil)}
           onChangeLow={handleLow}
           onChangeHigh={handleHigh}
-          gradient={`linear-gradient(90deg, ${colors.levelOk}, ${colors.levelWarn}, ${colors.levelOver})`}
+          gradient="linear-gradient(90deg, #cc4778, #edc8b0, #ed7953)"
         />
         <span style={{ fontSize: 9, fontFamily: "monospace", color: colors.textDim, minWidth: 16 }}>
           {lufsCeil}

@@ -7,7 +7,7 @@ interface Props {
   gradient?: string;
 }
 
-const defaultGradient = `linear-gradient(90deg, ${colors.accent}, #3EDEF7, #A3D9D9, #D89F58, #E2B0A5)`;
+const defaultGradient = `linear-gradient(90deg, #5b02a3, #cc4778, #ed7953, #edc8b0, #f5e0d0)`;
 
 export function NeonSlider({ value, onChange, gradient }: Props) {
   const trackRef = useRef<HTMLDivElement>(null);

@@ -24,9 +24,9 @@ function dbToNorm(db: number, floor: number, ceil: number): number {
 }
 
 function zoneColor(db: number): string {
-  if (db > -6) return colors.levelOver;
-  if (db > -12) return colors.levelWarn;
-  return colors.levelOk;
+  if (db > -6) return "#ed7953";  // warm orange (hot)
+  if (db > -12) return "#edc8b0"; // warm cream (mid)
+  return "#cc4778";               // pink (cool)
 }
 
 function segmentZoneColor(i: number, floor: number, ceil: number): string {
@@ -266,7 +266,7 @@ export function VUMeter({ width, height }: Props) {
           high={dbToSlider(dbCeil)}
           onChangeLow={handleLow}
           onChangeHigh={handleHigh}
-          gradient={`linear-gradient(90deg, ${colors.levelOk}, ${colors.levelWarn}, ${colors.levelOver})`}
+          gradient="linear-gradient(90deg, #cc4778, #edc8b0, #ed7953)"
         />
         <span style={{ fontSize: 9, fontFamily: "monospace", color: colors.textDim, minWidth: 24 }}>
           {dbCeil > 0 ? `+${dbCeil}` : dbCeil}
