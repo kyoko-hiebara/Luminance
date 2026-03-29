@@ -640,51 +640,56 @@ export function VJVisualizer({ width, height }: Props) {
       const bar4Phase = (adjP / barS) % 4; // 0..4 within each 4-bar cycle
       const cycleIdx = Math.floor(adjP / (barS * 4)); // which 4-bar cycle
 
-      // Determine how many lines (2-5) from cycle hash
-      const lineCount = 2 + Math.floor(hash31(cycleIdx * 17 + 3) * 4); // 2..5
+      // 2-5 lines, spaced apart vertically, staggered by 0.25 bars
+      const lineCount = 2 + Math.floor(hash31(cycleIdx * 17 + 3) * 4);
+
+      // Pre-compute Y positions with minimum spacing
+      const minSpacing = height / (lineCount + 2);
+      const yPositions: number[] = [];
+      for (let li = 0; li < lineCount; li++) {
+        const raw = hash31(cycleIdx * 100 + li * 7 + 1);
+        // Distribute evenly with jitter to avoid overlap
+        const base = ((li + 0.5) / lineCount) * (height - 20) + 10;
+        const jitter = (raw - 0.5) * minSpacing * 0.5;
+        yPositions.push(Math.max(8, Math.min(height - 8, base + jitter)));
+      }
 
       for (let li = 0; li < lineCount; li++) {
-        // Each line starts at a staggered time (0, 0.25, 0.5, ... bars into the cycle)
         const stagger = li * 0.25;
-        const lineAge = bar4Phase - stagger; // how many bars since this line started
+        const lineAge = bar4Phase - stagger;
 
-        if (lineAge < 0 || lineAge > 2.5) continue; // line lives for ~2.5 bars
+        if (lineAge < 0 || lineAge > 0.75) continue; // 0.5 grow + 0.25 fade = 0.75 bars total
 
-        // Line grows for 1.5 bars, then fades out for 1 bar
-        const growDuration = 1.5;
-        const fadeDuration = 1.0;
-        let progress: number; // 0..1 width
+        const growDuration = 0.5;
+        const fadeDuration = 0.25;
+        let progress: number;
         let alpha: number;
 
         if (lineAge < growDuration) {
           progress = lineAge / growDuration;
-          alpha = 0.6;
+          alpha = 0.45;
         } else {
           progress = 1.0;
           const fadeAge = lineAge - growDuration;
-          alpha = 0.6 * Math.max(0, 1 - fadeAge / fadeDuration);
+          alpha = 0.45 * Math.max(0, 1 - fadeAge / fadeDuration);
         }
 
         if (alpha < 0.01) continue;
 
-        // Random position per line (deterministic from cycle + line index)
-        const yNorm = hash31(cycleIdx * 100 + li * 7 + 1);
         const xNorm = hash31(cycleIdx * 100 + li * 7 + 2);
-        const lineY = 8 + yNorm * (height - 16);
-        const lineX = xNorm * width * 0.3; // start from left 30% area
-        const lineW = progress * width * (0.3 + hash31(cycleIdx * 100 + li * 7 + 3) * 0.4);
-        const lineH = 1 + hash31(cycleIdx * 100 + li * 7 + 4) * 1.5;
+        const lineY = yPositions[li];
+        const lineX = xNorm * width * 0.3;
+        const lineW = progress * width * (0.15 + hash31(cycleIdx * 100 + li * 7 + 3) * 0.2);
+        const lineH = 1 + hash31(cycleIdx * 100 + li * 7 + 4);
 
+        // Match existing shape style: soft fill + shadowBlur glow
+        ctx2.save();
         ctx2.globalAlpha = alpha;
-        ctx2.fillStyle = "#edc8b0";
+        ctx2.shadowColor = "rgba(237,200,176,0.5)";
+        ctx2.shadowBlur = 6;
+        ctx2.fillStyle = "rgba(237,200,176,0.7)";
         ctx2.fillRect(lineX, lineY, lineW, lineH);
-
-        // Subtle glow
-        ctx2.shadowColor = "#ed7953";
-        ctx2.shadowBlur = 4;
-        ctx2.fillRect(lineX, lineY, lineW, lineH);
-        ctx2.shadowBlur = 0;
-        ctx2.globalAlpha = 1;
+        ctx2.restore();
       }
     }
 
