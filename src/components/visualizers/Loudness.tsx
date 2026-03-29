@@ -216,42 +216,42 @@ export function Loudness({ width, height }: Props) {
     ctx.stroke();
 
     // TP label
-    ctx.font = "bold 8px monospace";
+    ctx.font = "bold 10px monospace";
     ctx.textAlign = "center";
-    glowText(ctx, "TP", tpCenterX, padding.top + 14, colors.textPrimary, "rgba(237,237,244,0.35)");
+    glowText(ctx, "TP", tpCenterX, padding.top + 16, colors.textPrimary, "rgba(237,237,244,0.35)");
 
     // TP value (large)
     const tpStr = truePeak <= -90 ? "-inf" : truePeak.toFixed(1);
     const tpColor = truePeak > -1 ? colors.levelOver : truePeak > -3 ? colors.levelWarn : colors.textPrimary;
-    ctx.font = "bold 12px monospace";
+    ctx.font = "bold 16px monospace";
     glowText(ctx, tpStr, tpCenterX, padding.top + plotH * 0.38, tpColor, `${tpColor}66`);
 
     // dBFS unit
-    ctx.font = "7px monospace";
-    glowText(ctx, "dBFS", tpCenterX, padding.top + plotH * 0.38 + 14);
+    ctx.font = "9px monospace";
+    glowText(ctx, "dBFS", tpCenterX, padding.top + plotH * 0.38 + 18);
 
     // L/R individual values
     const tpLStr = truePeakL <= -90 ? "-inf" : truePeakL.toFixed(1);
     const tpRStr = truePeakR <= -90 ? "-inf" : truePeakR.toFixed(1);
     const tpLColor = truePeakL > -1 ? colors.levelOver : truePeakL > -3 ? colors.levelWarn : colors.textDim;
     const tpRColor = truePeakR > -1 ? colors.levelOver : truePeakR > -3 ? colors.levelWarn : colors.textDim;
-    ctx.font = "8px monospace";
-    glowText(ctx, `L ${tpLStr}`, tpCenterX, padding.top + plotH * 0.6, tpLColor, `${tpLColor}44`);
-    glowText(ctx, `R ${tpRStr}`, tpCenterX, padding.top + plotH * 0.6 + 12, tpRColor, `${tpRColor}44`);
+    ctx.font = "10px monospace";
+    glowText(ctx, `L ${tpLStr}`, tpCenterX, padding.top + plotH * 0.58, tpLColor, `${tpLColor}44`);
+    glowText(ctx, `R ${tpRStr}`, tpCenterX, padding.top + plotH * 0.58 + 16, tpRColor, `${tpRColor}44`);
 
     // Clip indicator (flashes red when > -0.3 dBFS)
     if (truePeak > -0.3) {
       ctx.fillStyle = colors.levelOver;
       ctx.globalAlpha = 0.8;
       ctx.beginPath();
-      ctx.roundRect(tpX + 4, padding.top + plotH * 0.78, tpPanelW - 8, 16, 3);
+      ctx.roundRect(tpX + 4, padding.top + plotH * 0.8, tpPanelW - 8, 20, 3);
       ctx.fill();
       ctx.globalAlpha = 1;
-      ctx.font = "bold 8px monospace";
+      ctx.font = "bold 10px monospace";
       ctx.fillStyle = "#fff";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.fillText("CLIP", tpCenterX, padding.top + plotH * 0.78 + 8);
+      ctx.fillText("CLIP", tpCenterX, padding.top + plotH * 0.8 + 10);
       ctx.textBaseline = "alphabetic";
     }
 
