@@ -89,7 +89,7 @@ export function Stereometer({ width, height }: Props) {
 
     // ─── Persistence: fade previous frame instead of clearing ─────────
     // Darken previous frame for trail effect
-    ctx.fillStyle = "rgba(22,33,33,0.18)";
+    ctx.fillStyle = "rgba(9,24,52,0.18)"; // #091834 navy darkest
     ctx.fillRect(0, 0, width, height);
 
     // ─── Background gradient (subtle radial from center) ──────────────
@@ -193,9 +193,9 @@ export function Stereometer({ width, height }: Props) {
       // Waveform — rotated 90° (time flows top to bottom)
       const step = displayLen / scopeFullH;
       ctx.save();
-      ctx.shadowColor = "#3EDEF7";
+      ctx.shadowColor = "#A3D9D9";
       ctx.shadowBlur = 3;
-      ctx.strokeStyle = "#3EDEF7";
+      ctx.strokeStyle = "#A3D9D9";
       ctx.lineWidth = 1;
       ctx.beginPath();
       for (let py = 0; py < scopeFullH; py++) {
@@ -237,11 +237,11 @@ export function Stereometer({ width, height }: Props) {
         const amp = Math.sqrt(l * l + r * r);
         const dotSize = 1.5 + amp * 3.0;
 
-        // Color: green center, cyan at edges
+        // Color: navy center (#B7C5F4), teal at edges (#A3D9D9)
         const edgeness = Math.min(1, amp * 2);
-        const cr = Math.round(20 + edgeness * 30);
-        const cg = Math.round(180 + edgeness * 40);
-        const cb = Math.round(140 + edgeness * 80);
+        const cr = Math.round(0xB7 + edgeness * (0xA3 - 0xB7));
+        const cg = Math.round(0xC5 + edgeness * (0xD9 - 0xC5));
+        const cb = Math.round(0xF4 + edgeness * (0xD9 - 0xF4));
         const ca = 0.5 + edgeness * 0.4;
 
         ctx.fillStyle = `rgba(${cr},${cg},${cb},${ca})`;
@@ -252,8 +252,8 @@ export function Stereometer({ width, height }: Props) {
 
       // Bright center glow
       const glowGrad = ctx.createRadialGradient(scopeCX, scopeCY, 0, scopeCX, scopeCY, scopeR * 0.5);
-      glowGrad.addColorStop(0, "rgba(163,217,217,0.06)");
-      glowGrad.addColorStop(1, "rgba(163,217,217,0)");
+      glowGrad.addColorStop(0, "rgba(183,197,244,0.06)");
+      glowGrad.addColorStop(1, "rgba(183,197,244,0)");
       ctx.fillStyle = glowGrad;
       ctx.fillRect(0, 0, width, scopeH);
     }

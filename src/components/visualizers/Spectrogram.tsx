@@ -24,17 +24,14 @@ function dbToColor(db: number): [number, number, number] {
   const tAdjusted = Math.pow(t, 0.85);
 
   const stops: Array<{ pos: number; r: number; g: number; b: number }> = [
-    { pos: 0.0, r: 5, g: 5, b: 10 },         // near-black
-    { pos: 0.1, r: 30, g: 8, b: 60 },         // very dark purple
-    { pos: 0.2, r: 65, g: 15, b: 120 },       // deep purple (brighter)
-    { pos: 0.3, r: 40, g: 60, b: 200 },       // blue (brighter)
-    { pos: 0.4, r: 10, g: 160, b: 220 },      // cyan
-    { pos: 0.5, r: 20, g: 200, b: 120 },      // teal-green
-    { pos: 0.6, r: 50, g: 210, b: 60 },       // green
-    { pos: 0.7, r: 200, g: 210, b: 20 },      // yellow
-    { pos: 0.8, r: 240, g: 150, b: 10 },      // orange
-    { pos: 0.9, r: 240, g: 60, b: 50 },       // red
-    { pos: 1.0, r: 255, g: 230, b: 230 },     // near-white
+    { pos: 0.0,  r: 0x09, g: 0x18, b: 0x34 },  // #091834 navy darkest (silence)
+    { pos: 0.15, r: 0x1A, g: 0x35, b: 0x67 },  // #1A3567 navy (very quiet)
+    { pos: 0.28, r: 0x17, g: 0x65, b: 0x71 },  // #176571 dark teal (quiet)
+    { pos: 0.42, r: 0xA3, g: 0xD9, b: 0xD9 },  // #A3D9D9 teal (low-mid)
+    { pos: 0.56, r: 0xD8, g: 0x9F, b: 0x58 },  // #D89F58 gold (mid)
+    { pos: 0.72, r: 0xC3, g: 0x3F, b: 0x45 },  // #C33F45 red (loud)
+    { pos: 0.86, r: 0xE2, g: 0xB0, b: 0xA5 },  // #E2B0A5 rose light (very loud)
+    { pos: 1.0,  r: 0xEB, g: 0xEE, b: 0xFC },  // #EBEEFC near-white (max)
   ];
 
   // Find surrounding stops

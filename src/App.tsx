@@ -92,7 +92,7 @@ export default function App() {
                 color: colors.accent,
                 textShadow: `0 0 20px ${colors.accent}88`,
                 padding: "16px 32px",
-                background: "rgba(22,33,33,0.9)",
+                background: "rgba(9,24,52,0.9)",
                 borderRadius: 8,
               }}
             >

@@ -35,7 +35,7 @@ export function Panel({ title, hideTitle, children }: Props) {
         <div
           data-panel-title={title}
           className="flex items-center px-3 py-1.5 border-b border-border-panel"
-          style={{ background: "linear-gradient(to right, #0B4149, transparent)" }}
+          style={{ background: "linear-gradient(to right, #0e2245, transparent)" }}
         >
           <span
             className="inline-block w-1.5 h-1.5 rounded-full mr-2 flex-shrink-0"
@@ -47,8 +47,8 @@ export function Panel({ title, hideTitle, children }: Props) {
           <span
             className="text-xs font-semibold uppercase tracking-wider"
             style={{
-              color: "#A3D9D9",
-              textShadow: "0 0 12px rgba(163,217,217,0.55), 0 0 4px rgba(195,63,69,0.35), 0 0 1px rgba(255,255,255,0.2)",
+              color: "#B7C5F4",
+              textShadow: "0 0 12px rgba(127,158,237,0.55), 0 0 4px rgba(195,63,69,0.35), 0 0 1px rgba(255,255,255,0.2)",
             }}
           >
             {title}

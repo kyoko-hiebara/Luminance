@@ -189,11 +189,24 @@ export function Waveform({ width, height }: Props) {
     const fwp = frameWritePos.current;
     const framesInView = Math.max(1, Math.ceil(viewSamples / SAMPLES_PER_FRAME));
 
+    // Palette hue mapping: Navy(220) → Teal(180) → Gold(35) → Red(0) → Purple(290)
     const balToHue = (lo: number, mi: number, hi: number, exp: number) => {
       const tot = lo + mi + hi;
-      if (tot < 0.001) return 0;
+      if (tot < 0.001) return 220; // navy at silence
       const bal = (mi * 0.5 + hi) / tot;
-      return Math.pow(Math.max(0.001, bal), exp) * 300;
+      const t = Math.pow(Math.max(0.001, bal), exp);
+      // Interpolate through palette hue stops
+      const stops = [
+        [0, 220], [0.2, 180], [0.4, 35], [0.6, 15],
+        [0.8, 0], [1.0, 290],
+      ];
+      for (let i = 0; i < stops.length - 1; i++) {
+        if (t <= stops[i + 1][0]) {
+          const f = (t - stops[i][0]) / (stops[i + 1][0] - stops[i][0]);
+          return stops[i][1] + (stops[i + 1][1] - stops[i][1]) * f;
+        }
+      }
+      return 290;
     };
 
     const hueL = new Float32Array(framesInView);

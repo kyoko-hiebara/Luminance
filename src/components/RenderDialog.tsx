@@ -111,7 +111,7 @@ function captureLayout(compositeCanvas: HTMLCanvasElement): string | null {
     const title = tbEl.getAttribute("data-panel-title") || "";
 
     // Title bar background
-    ctx.fillStyle = "#0B4149";
+    ctx.fillStyle = "#0e2245";
     ctx.fillRect(tx, ty, tbRect.width, tbRect.height);
 
     // Accent dot
@@ -122,7 +122,7 @@ function captureLayout(compositeCanvas: HTMLCanvasElement): string | null {
 
     // Title text
     ctx.font = "bold 10px monospace";
-    ctx.fillStyle = "#A3D9D9";
+    ctx.fillStyle = "#B7C5F4";
     ctx.textAlign = "left";
     ctx.textBaseline = "middle";
     ctx.fillText(title.toUpperCase(), tx + 24, ty + tbRect.height / 2);

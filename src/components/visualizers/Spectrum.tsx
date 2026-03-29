@@ -34,12 +34,12 @@ function hsl(h: number, s: number, l: number, a: number): string {
   return `hsla(${h},${s}%,${l}%,${a})`;
 }
 
-/** Smooth hue from frequency position — continuous interpolation through rainbow */
+/** Smooth hue from frequency position — continuous interpolation through palette */
 function posToHue(normX: number): number {
-  // Continuous: red(0) → orange(30) → yellow(60) → green(120) → cyan(180) → blue(220) → purple(270) → pink(300)
+  // Navy(220) → Teal(180) → Gold(35) → Rose(15) → Red(0) → Purple(290)
   const stops = [
-    [0, 0], [0.14, 30], [0.28, 60], [0.42, 120],
-    [0.57, 180], [0.71, 220], [0.85, 270], [1.0, 300],
+    [0, 220], [0.2, 180], [0.4, 35], [0.6, 15],
+    [0.8, 0], [1.0, 290],
   ];
   const t = Math.max(0, Math.min(1, normX));
   for (let i = 0; i < stops.length - 1; i++) {
@@ -48,7 +48,7 @@ function posToHue(normX: number): number {
       return stops[i][1] + (stops[i + 1][1] - stops[i][1]) * f;
     }
   }
-  return 300;
+  return 290;
 }
 
 function freqToHue(freq: number): number {

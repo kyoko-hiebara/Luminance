@@ -79,7 +79,7 @@ export function NeonSlider({ value, onChange, gradient }: Props) {
           right: 0,
           height: 3,
           borderRadius: 1.5,
-          background: "#162121",
+          background: "#091834",
         }}
       />
       <div
@@ -213,7 +213,7 @@ export function NeonRangeSlider({ low, high, onChangeLow, onChangeHigh, gradient
           right: 0,
           height: 3,
           borderRadius: 1.5,
-          background: "#162121",
+          background: "#091834",
         }}
       />
       {/* Filled range between thumbs */}
