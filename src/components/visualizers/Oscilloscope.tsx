@@ -142,7 +142,7 @@ export function Oscilloscope({ width, height }: Props) {
       const prevStep = plotW / prev.length;
       ctx.save();
       ctx.globalAlpha = 0.2;
-      ctx.strokeStyle = "#4b2f6b";
+      ctx.strokeStyle = "#5b02a3";
       ctx.lineWidth = 2;
       ctx.beginPath();
       for (let i = 0; i < prev.length; i++) {
@@ -171,7 +171,7 @@ export function Oscilloscope({ width, height }: Props) {
 
     // Glow layer
     ctx.save();
-    ctx.strokeStyle = "rgba(200,160,180,0.15)";
+    ctx.strokeStyle = "rgba(240,220,200,0.2)";
     ctx.lineWidth = 6;
     ctx.lineJoin = "round";
     ctx.lineCap = "round";
@@ -186,14 +186,14 @@ export function Oscilloscope({ width, height }: Props) {
 
     // Main phosphor line
     const lineGrad = ctx.createLinearGradient(padding.left, 0, padding.left + plotW, 0);
-    lineGrad.addColorStop(0, "#c26a6e");
-    lineGrad.addColorStop(1, "#e8a77a");
+    lineGrad.addColorStop(0, "#edc8b0");
+    lineGrad.addColorStop(1, "#f5e0d0");
 
     ctx.strokeStyle = lineGrad;
     ctx.lineWidth = 2.5;
     ctx.lineJoin = "round";
     ctx.lineCap = "round";
-    ctx.shadowColor = "#c26a6e";
+    ctx.shadowColor = "#ed7953";
     ctx.shadowBlur = 6;
     ctx.beginPath();
     for (let i = 0; i < triggered.length; i++) {
@@ -214,7 +214,7 @@ export function Oscilloscope({ width, height }: Props) {
     ctx.textAlign = "left";
     ctx.textBaseline = "top";
     if (triggerFlashRef.current > 0.3) {
-      glowText(ctx, "TRIG", padding.left + 3, padding.top + 3, "#e8a77a", "rgba(232,167,122,0.5)");
+      glowText(ctx, "TRIG", padding.left + 3, padding.top + 3, "#fbb61a", "rgba(251,182,26,0.5)");
     } else {
       glowText(ctx, "TRIG", padding.left + 3, padding.top + 3);
     }

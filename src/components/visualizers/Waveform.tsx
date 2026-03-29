@@ -270,12 +270,16 @@ export function Waveform({ width, height }: Props) {
 
         const density = max - min;
         const alpha = Math.min(0.95, density * 0.85) + 0.05;
+        // Density drives saturation down and lightness up → loud = white-hot
+        const densNorm = Math.min(1, density * 1.5);
+        const sat = Math.round(92 - densNorm * 50); // 92% → 42% (desaturate when loud)
+        const lit = Math.round(58 + densNorm * 32);  // 58% → 90% (brighten when loud)
 
         const yTop = centerY - max * amp;
         const yBot = centerY - min * amp;
         const barH = Math.max(1, yBot - yTop);
 
-        const color = `hsla(${hue},92%,58%,`;
+        const color = `hsla(${hue},${sat}%,${lit}%,`;
 
         // Glow
         ctx.fillStyle = color + `${alpha * 0.3})`;
