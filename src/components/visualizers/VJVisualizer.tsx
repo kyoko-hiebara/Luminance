@@ -29,6 +29,7 @@ uniform float u_mid;
 uniform float u_high;
 uniform float u_rms;
 uniform float u_beat;
+uniform float u_palette_shift; // 0..1, changes every 32 bars
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -50,18 +51,18 @@ float noise(vec2 p) {
   return mix(mix(hash(i),hash(i+vec2(1,0)),f.x),mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),f.x),f.y);
 }
 
+// All palettes shift by u_palette_shift for variety across sections
 vec3 palette(float t) {
-  return vec3(0.5) + vec3(0.5) * cos(6.28318*(vec3(1.0)*t+vec3(0.0,0.33,0.67)));
+  float s = u_palette_shift;
+  return vec3(0.5) + vec3(0.5) * cos(6.28318*(vec3(1.0)*t+vec3(0.0+s, 0.33+s*0.7, 0.67+s*0.4)));
 }
 vec3 palWarm(float t) {
-  return vec3(0.5) + vec3(0.5) * cos(6.28318*(vec3(1.0,0.7,0.4)*t+vec3(0.0,0.15,0.20)));
+  float s = u_palette_shift;
+  return vec3(0.5) + vec3(0.5) * cos(6.28318*(vec3(1.0,0.7,0.4)*t+vec3(s*0.3, 0.15+s*0.5, 0.20+s*0.8)));
 }
 vec3 palNeon(float t) {
-  return vec3(0.5) + vec3(0.5) * cos(6.28318*(vec3(2.0,1.0,0.0)*t+vec3(0.5,0.2,0.25)));
-}
-vec3 palCyan(float t) {
-  vec3 a=vec3(0.24,0.58,0.58), b=vec3(0.24,0.48,0.38);
-  return a + b * cos(6.28318*(t+vec3(0.52,0.80,0.55)));
+  float s = u_palette_shift;
+  return vec3(0.5) + vec3(0.5) * cos(6.28318*(vec3(2.0,1.0,0.0)*t+vec3(0.5+s*0.6, 0.2+s*0.3, 0.25+s*0.9)));
 }
 
 float fbm(vec2 p) {
@@ -292,6 +293,7 @@ interface Uniforms {
   u_high: WebGLUniformLocation | null;
   u_rms: WebGLUniformLocation | null;
   u_beat: WebGLUniformLocation | null;
+  u_palette_shift: WebGLUniformLocation | null;
 }
 
 function dbToNorm(db: number, floor = -60, ceil = 0): number {
@@ -448,6 +450,7 @@ export function VJVisualizer({ width, height }: Props) {
       u_high: gl.getUniformLocation(program, "u_high"),
       u_rms: gl.getUniformLocation(program, "u_rms"),
       u_beat: gl.getUniformLocation(program, "u_beat"),
+      u_palette_shift: gl.getUniformLocation(program, "u_palette_shift"),
     };
 
     const verts = new Float32Array([-1,-1, 1,-1, -1,1, -1,1, 1,-1, 1,1]);
@@ -521,6 +524,14 @@ export function VJVisualizer({ width, height }: Props) {
     gl.uniform1f(u.u_high, smoothHighRef.current);
     gl.uniform1f(u.u_rms, smoothRmsRef.current);
     gl.uniform1f(u.u_beat, beatRef.current);
+
+    // Palette shift: changes every 32 bars, smooth transition
+    const rawPos = transportRef.current?.position_secs ?? 0;
+    const adjPos = Math.max(0, rawPos - beatOffsetRef.current);
+    const currentBpmVal = bpmRef.current;
+    const barSec32 = (60 / currentBpmVal) * 4 * 32;
+    const palettePhase = barSec32 > 0 ? (adjPos % (barSec32 * 6)) / (barSec32 * 6) : 0;
+    gl.uniform1f(u.u_palette_shift, palettePhase);
 
     gl.bindVertexArray(vao);
     gl.drawArrays(gl.TRIANGLES, 0, 6);
