@@ -274,8 +274,6 @@ export function RenderDialog({ audioPath, onClose }: Props) {
     let lastPosition = 0;
     let staleCount = 0;
     let lastCheckPos = 0;
-    const frameMs = 1000 / fps; // 33.3ms for 30fps
-
     // Listen for transport position
     const unlistenAudio = await listen<AudioData>("audio-data", (event) => {
       const t = event.payload.transport;
@@ -302,43 +300,45 @@ export function RenderDialog({ audioPath, onClose }: Props) {
       }
     };
 
-    // Synchronous 30fps capture: one frame at a time, exact timing.
-    const run = async () => {
-      while (renderingRef.current) {
-        const t0 = performance.now();
+    // Capture every rAF tick, wallclock timestamps handle timing.
+    // FFmpeg: -use_wallclock_as_timestamps 1 + -r 30 -vsync cfr
+    // → frames arrive at real-time rate, FFmpeg resamples to constant 30fps
+    let lastCheckTime = performance.now();
 
-        // End check
+    const captureLoop = () => {
+      if (!renderingRef.current) return;
+      const now = performance.now();
+
+      // End check every 500ms
+      if (now - lastCheckTime > 500) {
+        lastCheckTime = now;
         if (knownDuration > 0 && lastPosition >= knownDuration - 0.15) {
-          await finishRecording(); return;
+          finishRecording(); return;
         }
         if (lastPosition > 0 && Math.abs(lastPosition - lastCheckPos) < 0.01) {
           staleCount++;
-          if (staleCount >= 90) { await finishRecording(); return; }
+          if (staleCount >= 6) { finishRecording(); return; }
         } else { staleCount = 0; }
         lastCheckPos = lastPosition;
+      }
 
-        // Capture & submit one frame
-        const composite = compositeRef.current;
-        if (composite) {
-          const base64 = captureLayout(composite);
-          if (base64) {
-            frames++;
-            if (frames % 10 === 0) setFrameCount(frames);
-            try {
-              await invoke("submit_frame", { frameData: base64 });
-            } catch { break; }
-          }
+      // Capture & submit (fire-and-forget, background writer handles pipe)
+      const composite = compositeRef.current;
+      if (composite) {
+        const base64 = captureLayout(composite);
+        if (base64) {
+          frames++;
+          if (frames % 15 === 0) setFrameCount(frames);
+          invoke("submit_frame", { frameData: base64 }).catch(() => {});
         }
+      }
 
-        // Maintain 30fps cadence
-        const elapsed = performance.now() - t0;
-        if (elapsed < frameMs) {
-          await new Promise((r) => setTimeout(r, frameMs - elapsed));
-        }
+      if (renderingRef.current) {
+        requestAnimationFrame(captureLoop);
       }
     };
 
-    run();
+    requestAnimationFrame(captureLoop);
   }, [audioPath]);
 
   const handleCancel = useCallback(async () => {

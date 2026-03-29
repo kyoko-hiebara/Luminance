@@ -54,10 +54,11 @@ impl FfmpegProcess {
     ) -> Result<Self> {
         let mut args = vec![
             "-y".to_string(),
+            // Wallclock timestamps: each frame gets real-time timestamp
+            "-use_wallclock_as_timestamps".into(),
+            "1".into(),
             "-f".into(),
             "image2pipe".into(),
-            "-framerate".into(),
-            fps.to_string(),
             "-c:v".into(),
             "mjpeg".into(),
             "-i".into(),
@@ -83,6 +84,8 @@ impl FfmpegProcess {
             "yuv420p".into(),
             "-r".into(),
             fps.to_string(),
+            "-vsync".into(),
+            "cfr".into(),
             "-c:a".into(),
             "aac".into(),
             "-b:a".into(),
