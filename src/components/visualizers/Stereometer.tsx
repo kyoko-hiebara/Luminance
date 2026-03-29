@@ -1,6 +1,8 @@
 import { useRef } from "react";
 import { useAudioData, type AudioData } from "@/hooks/useAudioData";
 import { useAnimationFrame } from "@/hooks/useAnimationFrame";
+import { useBpm } from "@/hooks/useBpm";
+import { useFileAnalysis } from "@/hooks/useFileAnalysis";
 import { getCanvasCtx, glowText } from "@/lib/canvas";
 import { colors } from "@/lib/colors";
 
@@ -58,16 +60,17 @@ export function Stereometer({ width, height }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const ctxCache = useRef({ w: 0, h: 0, ctx: null as CanvasRenderingContext2D | null });
   const dataRef = useRef<AudioData["stereo"] | null>(null);
-  const levelsRef = useRef<AudioData["levels"] | null>(null);
+  const waveformRef = useRef<AudioData["waveform"] | null>(null);
   const smoothCorrRef = useRef(0);
-  // Waterfall history for L/R levels (each row = one frame's dB value)
-  const waterfallW = 12; // width of each side strip in pixels
-  const waterfallLRef = useRef<HTMLCanvasElement | null>(null);
-  const waterfallRRef = useRef<HTMLCanvasElement | null>(null);
+  const { bpmRef } = useBpm();
+  const sampleRateRef = useRef(44100);
+  useFileAnalysis((data) => { if (data) sampleRateRef.current = data.sample_rate; });
+  // Oscilloscope note value index — synced with Oscilloscope component's default (1/4 = index 2)
+  const noteIdx = 2; // 1/4 note
 
   useAudioData("audio-data", (payload) => {
     dataRef.current = payload.stereo;
-    levelsRef.current = payload.levels;
+    waveformRef.current = payload.waveform;
   });
 
   useAnimationFrame(() => {
@@ -147,58 +150,73 @@ export function Stereometer({ width, height }: Props) {
     glowText(ctx, "R", scopeCX + scopeR * 0.72 + 10, scopeCY - scopeR * 0.72 - 6);
     ctx.textBaseline = "alphabetic";
 
-    // ─── Side L/R waterfall strips ──────────────────────────────────────
-    const levels = levelsRef.current;
-    const dbNorm = (db: number) => Math.max(0, Math.min(1, (Math.max(-60, db) + 60) / 60));
-    const rmsL = dbNorm(levels?.rms_l ?? -90);
-    const rmsR = dbNorm(levels?.rms_r ?? -90);
+    // ─── Side L/R mini oscilloscopes (synced with Oscilloscope panel) ──
+    const DECIMATE_RATIO = 16;
+    const NOTE_BEATS = [0.25, 0.5, 1, 2, 4][noteIdx];
+    const beatSec = 60 / bpmRef.current;
+    const noteSec = beatSec * NOTE_BEATS;
+    const displaySR = sampleRateRef.current / DECIMATE_RATIO;
+    const targetSamples = Math.round(noteSec * displaySR);
 
-    // dB → color (spectrogram style)
-    const dbToRgb = (norm: number): [number, number, number] => {
-      // black → purple → blue → cyan → green → yellow → red → white
-      const t = norm;
-      if (t < 0.15) return [Math.round(t/0.15*40), 0, Math.round(t/0.15*60)];
-      if (t < 0.3) { const s=(t-0.15)/0.15; return [40-Math.round(s*40), 0, 60+Math.round(s*195)]; }
-      if (t < 0.45) { const s=(t-0.3)/0.15; return [0, Math.round(s*200), 255-Math.round(s*55)]; }
-      if (t < 0.6) { const s=(t-0.45)/0.15; return [0, 200+Math.round(s*55), 200-Math.round(s*200)]; }
-      if (t < 0.75) { const s=(t-0.6)/0.15; return [Math.round(s*255), 255, 0]; }
-      if (t < 0.9) { const s=(t-0.75)/0.15; return [255, 255-Math.round(s*155), 0]; }
-      { const s=(t-0.9)/0.1; return [255, 100+Math.round(s*155), Math.round(s*255)]; }
-    };
+    const stripW = 14;
+    const waveform = waveformRef.current;
 
-    const drawWaterfall = (wfRef: React.MutableRefObject<HTMLCanvasElement | null>, x: number, norm: number) => {
-      const wfH = scopeH;
-      // Lazy init offscreen canvas for waterfall history
-      let wf = wfRef.current;
-      if (!wf || wf.width !== waterfallW || wf.height !== wfH) {
-        wf = document.createElement("canvas");
-        wf.width = waterfallW;
-        wf.height = Math.max(1, wfH);
-        wfRef.current = wf;
+    const drawMiniScope = (samples: number[] | undefined, x: number, label: string) => {
+      if (!samples || samples.length === 0) return;
+
+      // Find trigger point (zero crossing, rising edge)
+      let trigIdx = 0;
+      for (let i = 1; i < samples.length - 1; i++) {
+        if (samples[i - 1] <= 0 && samples[i] > 0) { trigIdx = i; break; }
       }
-      const wfCtx = wf.getContext("2d");
-      if (!wfCtx) return;
 
-      // Scroll down: copy existing image 1px down
-      wfCtx.drawImage(wf, 0, 0, waterfallW, wfH, 0, 1, waterfallW, wfH);
+      const displayLen = Math.min(targetSamples, samples.length - trigIdx);
+      if (displayLen <= 0) return;
 
-      // Draw new row at top
-      const [r, g, b] = dbToRgb(norm);
-      wfCtx.fillStyle = `rgb(${r},${g},${b})`;
-      wfCtx.fillRect(0, 0, waterfallW, 1);
+      const scopeTop = 4;
+      const scopeBot = scopeH - 12;
+      const scopeMidY = (scopeTop + scopeBot) / 2;
+      const scopeFullH = scopeBot - scopeTop;
 
-      // Draw waterfall onto main canvas
-      ctx.drawImage(wf, x, 0, waterfallW, wfH);
+      // Background
+      ctx.fillStyle = "rgba(20,20,36,0.4)";
+      ctx.fillRect(x, scopeTop, stripW, scopeFullH);
+
+      // Zero line
+      ctx.strokeStyle = "rgba(50,50,90,0.4)";
+      ctx.lineWidth = 0.5;
+      ctx.beginPath();
+      ctx.moveTo(x, scopeMidY);
+      ctx.lineTo(x + stripW, scopeMidY);
+      ctx.stroke();
+
+      // Waveform — rotated 90° (time flows top to bottom)
+      const step = displayLen / scopeFullH;
+      ctx.save();
+      ctx.shadowColor = "#06b6d4";
+      ctx.shadowBlur = 3;
+      ctx.strokeStyle = "#06b6d4";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      for (let py = 0; py < scopeFullH; py++) {
+        const sIdx = trigIdx + Math.floor(py * step);
+        if (sIdx >= samples.length) break;
+        const val = samples[sIdx];
+        const px = x + stripW / 2 + val * (stripW * 0.4);
+        if (py === 0) ctx.moveTo(px, scopeTop + py);
+        else ctx.lineTo(px, scopeTop + py);
+      }
+      ctx.stroke();
+      ctx.restore();
+
+      // Label
+      ctx.font = "6px monospace";
+      ctx.textAlign = "center";
+      glowText(ctx, label, x + stripW / 2, scopeBot + 8);
     };
 
-    drawWaterfall(waterfallLRef, 0, rmsL);
-    drawWaterfall(waterfallRRef, width - waterfallW, rmsR);
-
-    // Labels
-    ctx.font = "6px monospace";
-    ctx.textAlign = "center";
-    glowText(ctx, "L", waterfallW / 2, scopeH - 3);
-    glowText(ctx, "R", width - waterfallW / 2, scopeH - 3);
+    drawMiniScope(waveform?.samples_l, 0, "L");
+    drawMiniScope(waveform?.samples_r, width - stripW, "R");
 
     // ─── Lissajous dots (fill the whole scope area) ───────────────────
     const stereo = dataRef.current;
