@@ -296,6 +296,12 @@ interface Uniforms {
   u_palette_shift: WebGLUniformLocation | null;
 }
 
+/** Simple integer hash → 0..1 (deterministic pseudo-random) */
+function hash31(n: number): number {
+  let x = Math.sin(n * 127.1 + n * 311.7) * 43758.5453;
+  return x - Math.floor(x);
+}
+
 function dbToNorm(db: number, floor = -60, ceil = 0): number {
   return Math.max(0, Math.min(1, (Math.max(floor, Math.min(ceil, db)) - floor) / (ceil - floor)));
 }
@@ -622,6 +628,64 @@ export function VJVisualizer({ width, height }: Props) {
       ctx2.fillStyle = "#f5e0d0";
       ctx2.fillRect(0, 0, width, height);
       ctx2.globalAlpha = 1;
+    }
+
+    // ─── Loading lines (every 4 bars, 2-5 lines staggered by 0.25 bar) ─
+    {
+      const rawP = transportRef.current?.position_secs ?? 0;
+      const adjP = Math.max(0, rawP - beatOffsetRef.current);
+      const bpmVal = bpmRef.current;
+      const beatS = 60 / bpmVal;
+      const barS = beatS * 4;
+      const bar4Phase = (adjP / barS) % 4; // 0..4 within each 4-bar cycle
+      const cycleIdx = Math.floor(adjP / (barS * 4)); // which 4-bar cycle
+
+      // Determine how many lines (2-5) from cycle hash
+      const lineCount = 2 + Math.floor(hash31(cycleIdx * 17 + 3) * 4); // 2..5
+
+      for (let li = 0; li < lineCount; li++) {
+        // Each line starts at a staggered time (0, 0.25, 0.5, ... bars into the cycle)
+        const stagger = li * 0.25;
+        const lineAge = bar4Phase - stagger; // how many bars since this line started
+
+        if (lineAge < 0 || lineAge > 2.5) continue; // line lives for ~2.5 bars
+
+        // Line grows for 1.5 bars, then fades out for 1 bar
+        const growDuration = 1.5;
+        const fadeDuration = 1.0;
+        let progress: number; // 0..1 width
+        let alpha: number;
+
+        if (lineAge < growDuration) {
+          progress = lineAge / growDuration;
+          alpha = 0.6;
+        } else {
+          progress = 1.0;
+          const fadeAge = lineAge - growDuration;
+          alpha = 0.6 * Math.max(0, 1 - fadeAge / fadeDuration);
+        }
+
+        if (alpha < 0.01) continue;
+
+        // Random position per line (deterministic from cycle + line index)
+        const yNorm = hash31(cycleIdx * 100 + li * 7 + 1);
+        const xNorm = hash31(cycleIdx * 100 + li * 7 + 2);
+        const lineY = 8 + yNorm * (height - 16);
+        const lineX = xNorm * width * 0.3; // start from left 30% area
+        const lineW = progress * width * (0.3 + hash31(cycleIdx * 100 + li * 7 + 3) * 0.4);
+        const lineH = 1 + hash31(cycleIdx * 100 + li * 7 + 4) * 1.5;
+
+        ctx2.globalAlpha = alpha;
+        ctx2.fillStyle = "#edc8b0";
+        ctx2.fillRect(lineX, lineY, lineW, lineH);
+
+        // Subtle glow
+        ctx2.shadowColor = "#ed7953";
+        ctx2.shadowBlur = 4;
+        ctx2.fillRect(lineX, lineY, lineW, lineH);
+        ctx2.shadowBlur = 0;
+        ctx2.globalAlpha = 1;
+      }
     }
 
     // ─── Text overlay ────────────────────────────────────────────────
